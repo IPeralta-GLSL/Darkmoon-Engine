@@ -42,9 +42,6 @@ impl AppState {
                     .with_decorations(!opt.no_window_decorations),
             )?;
 
-        // Actualizar el título de la ventana con información del dispositivo gráfico
-        kajiya.update_window_title();
-
         let runtime = RuntimeState::new(&mut persisted, &mut kajiya.world_renderer, opt);
 
         Ok(Self {

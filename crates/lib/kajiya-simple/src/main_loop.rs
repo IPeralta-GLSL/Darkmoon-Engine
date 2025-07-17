@@ -280,6 +280,15 @@ impl SimpleMainLoop {
             puffin_http::Server::new(&server_addr).unwrap()
         };
 
+        // Configurar el título inicial de la ventana
+        let device_name = unsafe {
+            std::ffi::CStr::from_ptr(
+                render_backend.device.physical_device().properties.device_name.as_ptr() as *const std::os::raw::c_char
+            ).to_string_lossy().to_string()
+        };
+        let initial_title = format!("Darkmoon Engine - Vulkan - {}", device_name);
+        window.set_title(&initial_title);
+
         let optional = MainLoopOptional {
             #[cfg(feature = "dear-imgui")]
             imgui_backend,
@@ -325,6 +334,10 @@ impl SimpleMainLoop {
 
         let mut last_frame_instant = std::time::Instant::now();
         let mut last_error_text = None;
+
+        // Variables para el contador de FPS
+        let mut fps_update_timer = std::time::Instant::now();
+        const FPS_UPDATE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500); // Actualizar cada 500ms
 
         // Delta times are filtered over _this many_ frames.
         const DT_FILTER_WIDTH: usize = 10;
@@ -418,6 +431,26 @@ impl SimpleMainLoop {
                     dt_queue.iter().copied().sum::<f32>() / dt_queue.len() as f32
                 }
             };
+
+            // Actualizar el título de la ventana con FPS cada 500ms
+            let now = std::time::Instant::now();
+            if now.duration_since(fps_update_timer) >= FPS_UPDATE_INTERVAL {
+                let fps = 1.0 / dt_filtered;
+                let frame_time_ms = dt_filtered * 1000.0;
+                
+                // Obtener información del dispositivo físico
+                let device_name = unsafe {
+                    std::ffi::CStr::from_ptr(
+                        render_backend.device.physical_device().properties.device_name.as_ptr() as *const std::os::raw::c_char
+                    ).to_string_lossy().to_string()
+                };
+                
+                let title = format!("Darkmoon Engine - Vulkan - {} - ({:.0} FPS) ({:.1}ms)", 
+                                  device_name, fps, frame_time_ms);
+                window.set_title(&title);
+                
+                fps_update_timer = now;
+            }
 
             let frame_desc = frame_fn(FrameContext {
                 dt_filtered,

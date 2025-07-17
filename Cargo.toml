@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "crates/bin/bake",
     "crates/bin/hello",
-    "crates/bin/view",
+    "crates/bin/darkmoon-engine",
 
     "crates/lib/kajiya-asset",
     "crates/lib/kajiya-asset-pipe",
