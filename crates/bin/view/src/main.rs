@@ -88,7 +88,7 @@ impl AppState {
     }
 }
 
-const APP_STATE_CONFIG_FILE_PATH: &str = "view_state.ron";
+const APP_STATE_CONFIG_FILE_PATH: &str = "view_state.dmoon";
 
 fn main() -> anyhow::Result<()> {
     set_vfs_mount_point("/meshes", "assets/meshes");

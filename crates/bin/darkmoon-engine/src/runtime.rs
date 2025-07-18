@@ -692,7 +692,7 @@ impl RuntimeState {
                                 }
                             }
                         }
-                        "ron" => {
+                        "ron" | "dmoon" => {
                             // Scene
                             if let Err(err) = self.load_scene(persisted, world_renderer, path) {
                                 log::error!("Failed to load scene: {:#}", err);

@@ -1,0 +1,53 @@
+(
+    camera: (
+        position: (3.4812715, -0.5544688, -1.3270453),
+        rotation: (-0.16197532, 0.38777697, 0.069422804, 0.9047506),
+        vertical_fov: 62,
+    ),
+    light: (
+        emissive_multiplier: 1,
+        enable_emissive: true,
+        sun: (
+            controller: (
+                towards_sun: (0, 1, 0),
+            ),
+            size_multiplier: 1,
+        ),
+        local_lights: (
+            theta: 1,
+            phi: 1,
+            count: 0,
+            distance: 1.5,
+            multiplier: 10,
+        ),
+    ),
+    exposure: (
+        ev_shift: 0,
+        use_dynamic_adaptation: false,
+        dynamic_adaptation_speed: 0,
+        dynamic_adaptation_low_clip: 0,
+        dynamic_adaptation_high_clip: 0,
+        contrast: 1,
+    ),
+    movement: (
+        camera_speed: 2.5,
+        camera_smoothness: 1,
+        sun_rotation_smoothness: 0,
+    ),
+    sequence: (
+        items: [],
+    ),
+    scene: (
+        elements: [
+            (
+                source: File("/home/iperalta/Documents/GitHub/kajiya/assets/meshes/flying_world_-_battle_of_the_trash_god/scene.gltf"),
+                transform: (
+                    position: (11, -3, -0.75),
+                    rotation_euler_degrees: (0, 0, 0),
+                    scale: (0.001875, 0.001875, 0.001875),
+                ),
+            ),
+        ],
+        ibl: None,
+    ),
+)
