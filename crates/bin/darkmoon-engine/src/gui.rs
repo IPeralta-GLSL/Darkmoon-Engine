@@ -17,6 +17,26 @@ impl RuntimeState {
 
         if self.show_gui {
             ctx.imgui.take().unwrap().frame(|ui| {
+                // --- Menubar superior ---
+                if let Some(bar) = ui.begin_main_menu_bar() {
+                    if let Some(file_menu) = ui.begin_menu(im_str!("File"), true) {
+                        // Opciones de File
+                        file_menu.end(&ui);
+                    }
+                    if let Some(window_menu) = ui.begin_menu(im_str!("Window"), true) {
+                        // Opciones de Window
+                        window_menu.end(&ui);
+                    }
+                    if let Some(view_menu) = ui.begin_menu(im_str!("View"), true) {
+                        let mut checked = ctx.world_renderer.is_ray_tracing_enabled();
+                        if ui.checkbox(im_str!("Ray tracing"), &mut checked) {
+                            ctx.world_renderer.set_ray_tracing_enabled(checked);
+                        }
+                        view_menu.end(&ui);
+                    }
+                    bar.end(&ui);
+                }
+
                 if imgui::CollapsingHeader::new(im_str!("Tweaks"))
                     .default_open(true)
                     .build(ui)

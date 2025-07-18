@@ -35,6 +35,7 @@ impl AppState {
             .temporal_upsampling(opt.temporal_upsampling)
             .default_log_level(log::LevelFilter::Info)
             .fullscreen(opt.fullscreen.then_some(FullscreenMode::Exclusive))
+            .ray_tracing(true) // Ray tracing activado por defecto
             .build(
                 WindowBuilder::new()
                     .with_title("Darkmoon Engine - Vulkan")

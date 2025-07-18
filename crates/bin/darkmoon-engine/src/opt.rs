@@ -40,4 +40,8 @@ pub struct Opt {
 
     #[structopt(long)]
     pub keymap: Option<PathBuf>,
+
+    /// ray tracing?
+    #[structopt(skip)]
+    pub ray_tracing: bool,
 }

@@ -92,6 +92,7 @@ pub struct SimpleMainLoopBuilder {
     default_log_level: log::LevelFilter,
     window_scale: WindowScale,
     temporal_upsampling: f32,
+    ray_tracing: bool,
 }
 
 impl Default for SimpleMainLoopBuilder {
@@ -101,6 +102,10 @@ impl Default for SimpleMainLoopBuilder {
 }
 
 impl SimpleMainLoopBuilder {
+    pub fn ray_tracing(mut self, ray_tracing: bool) -> Self {
+        self.ray_tracing = ray_tracing;
+        self
+    }
     pub fn new() -> Self {
         SimpleMainLoopBuilder {
             resolution: [1280, 720],
@@ -111,6 +116,7 @@ impl SimpleMainLoopBuilder {
             default_log_level: log::LevelFilter::Warn,
             window_scale: WindowScale::SystemNative,
             temporal_upsampling: 1.0,
+            ray_tracing: false,
         }
     }
 
@@ -247,6 +253,7 @@ impl SimpleMainLoop {
                 vsync: builder.vsync,
                 graphics_debugging: builder.graphics_debugging,
                 device_index: builder.physical_device_index,
+                ray_tracing: builder.ray_tracing,
             },
         )?;
 

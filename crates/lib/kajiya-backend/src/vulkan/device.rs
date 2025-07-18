@@ -173,7 +173,7 @@ unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
 
 impl Device {
-    pub fn create(pdevice: &Arc<PhysicalDevice>) -> Result<Arc<Self>> {
+    pub fn create_with_ray_tracing(pdevice: &Arc<PhysicalDevice>, force_ray_tracing: bool) -> Result<Arc<Self>> {
         let supported_extensions: HashSet<String> = unsafe {
             let extension_properties = pdevice
                 .instance
@@ -227,19 +227,17 @@ impl Device {
             vk::KhrRayTracingPipelineFn::name().as_ptr(),
         ];
 
-        let ray_tracing_enabled = unsafe {
+        let ray_tracing_supported = unsafe {
             ray_tracing_extensions.iter().all(|ext| {
                 let ext = std::ffi::CStr::from_ptr(*ext).to_string_lossy();
-
                 let supported = supported_extensions.contains(ext.as_ref());
-
                 if !supported {
                     log::info!("Ray tracing extension not supported: {}", ext);
                 }
-
                 supported
             })
         };
+        let ray_tracing_enabled = force_ray_tracing && ray_tracing_supported;
 
         if ray_tracing_enabled {
             log::info!("All ray tracing extensions are supported");

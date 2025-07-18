@@ -42,6 +42,7 @@ pub struct RenderBackendConfig {
     pub vsync: bool,
     pub graphics_debugging: bool,
     pub device_index: Option<usize>,
+    pub ray_tracing: bool,
 }
 
 impl RenderBackend {
@@ -90,7 +91,7 @@ impl RenderBackend {
 
         info!("Selected physical device: {:#?}", *physical_device);
 
-        let device = device::Device::create(&physical_device)?;
+        let device = device::Device::create_with_ray_tracing(&physical_device, config.ray_tracing)?;
         let surface_formats = swapchain::Swapchain::enumerate_surface_formats(&device, &surface)?;
 
         info!("Available surface formats: {:#?}", surface_formats);

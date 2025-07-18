@@ -212,6 +212,9 @@ pub struct WorldRenderer {
 
     // One for each render mode
     pub(crate) exposure_state: [ExposureState; 2],
+
+    /// Habilita/deshabilita el ray tracing en tiempo real (UI)
+    pub ray_tracing_enabled: bool,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -512,6 +515,7 @@ impl WorldRenderer {
             render_overrides: Default::default(),
 
             exposure_state: Default::default(),
+            ray_tracing_enabled: backend.device.ray_tracing_enabled(),
         })
     }
 
@@ -831,6 +835,18 @@ impl WorldRenderer {
     ) -> &mut InstanceDynamicParameters {
         let index = self.instance_handle_to_index[&inst];
         &mut self.instances[index].dynamic_parameters
+    }
+
+    pub fn set_ray_tracing_enabled(&mut self, enabled: bool) {
+        self.ray_tracing_enabled = enabled;
+        self.render_mode = if enabled {
+            RenderMode::Standard
+        } else {
+            RenderMode::Reference // O el modo raster, según tu lógica
+        };
+    }
+    pub fn is_ray_tracing_enabled(&self) -> bool {
+        self.ray_tracing_enabled
     }
 
     pub(crate) fn build_ray_tracing_top_level_acceleration(&mut self) {

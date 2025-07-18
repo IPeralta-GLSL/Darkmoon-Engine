@@ -95,7 +95,7 @@ impl RuntimeState {
             keymap_config: keymap_config.clone(),
             movement_map: keymap_config.movement.into(),
 
-            show_gui: false,
+            show_gui: true,
             sun_direction_interp,
             left_click_edit_mode: LeftClickEditMode::MoveSun,
 
