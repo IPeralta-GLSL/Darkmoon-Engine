@@ -12,6 +12,7 @@ kajiya-asset-pipe = { path = "../../lib/kajiya-asset-pipe"}
 
 anyhow = "1.0"
 dolly = "=0.4.0"
+gltf = { git = "https://github.com/gltf-rs/gltf.git", rev = "b9c04be69363b8353d58f99aa1008ead93020851", features = ["KHR_texture_transform", "KHR_materials_pbrSpecularGlossiness"] }
 imgui = "0.7"
 log = "0.4"
 ron = "0.6.2"

@@ -3,6 +3,8 @@
 use anyhow::Context;
 
 use dolly::prelude::*;
+use gltf;
+use dolly::glam::{Mat4, Vec3};
 use kajiya::{
     rg::GraphDebugHook,
     world_renderer::{AddMeshOptions, MeshHandle, WorldRenderer},
@@ -929,52 +931,231 @@ impl RuntimeState {
                 .and_then(|ext| ext.to_str())
                 .unwrap_or("");
 
+            // Handle direct GLTF files
             if extension == "gltf" || extension == "glb" {
-                // For now, create mock nodes based on the file
-                // In a real implementation, you would parse the GLTF and extract actual node data
+                let gltf_result = self.load_and_analyze_gltf(path);
                 
-                // Simulate multiple nodes for demonstration
-                elem.mesh_nodes = vec![
-                    MeshNode {
-                        name: Some("Node_0".to_string()),
-                        local_transform: SceneElementTransform {
-                            position: Vec3::new(0.0, 0.0, 0.0),
-                            rotation_euler_degrees: Vec3::ZERO,
-                            scale: Vec3::splat(1.0),
-                        },
-                        bounding_box: Some(Aabb::from_center_size(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(1.0))),
-                    },
-                    MeshNode {
-                        name: Some("Node_1".to_string()),
-                        local_transform: SceneElementTransform {
-                            position: Vec3::new(2.0, 0.0, 0.0),
-                            rotation_euler_degrees: Vec3::ZERO,
-                            scale: Vec3::splat(0.5),
-                        },
-                        bounding_box: Some(Aabb::from_center_size(Vec3::new(2.0, 0.0, 0.0), Vec3::splat(0.5))),
-                    },
-                    MeshNode {
-                        name: Some("Node_2".to_string()),
-                        local_transform: SceneElementTransform {
-                            position: Vec3::new(-1.5, 1.0, 0.5),
-                            rotation_euler_degrees: Vec3::ZERO,
-                            scale: Vec3::splat(0.8),
-                        },
-                        bounding_box: Some(Aabb::from_center_size(Vec3::new(-1.5, 1.0, 0.5), Vec3::splat(0.8))),
-                    },
-                ];
+                match gltf_result {
+                    Ok(nodes) => {
+                        elem.mesh_nodes = nodes;
+                        elem.is_compound = elem.mesh_nodes.len() > 1;
+                        
+                        println!("Analyzed GLTF '{}': Found {} mesh nodes", 
+                            path.display(), 
+                            elem.mesh_nodes.len()
+                        );
+                    }
+                    Err(e) => {
+                        println!("Warning: Failed to parse GLTF '{}': {}. Using fallback.", path.display(), e);
+                        
+                        // Fallback to mock data if parsing fails
+                        elem.mesh_nodes = vec![
+                            MeshNode {
+                                name: Some("Fallback_Node".to_string()),
+                                local_transform: SceneElementTransform::IDENTITY,
+                                bounding_box: Some(Aabb::from_center_size(Vec3::ZERO, Vec3::splat(1.0))),
+                            },
+                        ];
+                        elem.is_compound = false;
+                    }
+                }
+            }
+            // Handle .dmoon files that might reference GLTF files
+            else if extension == "dmoon" {
+                // For .dmoon files, we need to look at the mesh reference within the file
+                // This is a simplified approach - in a real implementation you'd parse the .dmoon file
+                // For now, we'll check if this element has a mesh reference that points to a GLTF file
                 
-                elem.is_compound = true;
-                
-                println!("Analyzed GLTF '{}': Found {} mesh nodes", 
-                    path.display(), 
-                    elem.mesh_nodes.len()
-                );
+                // Try to extract the GLTF path from the dmoon context
+                if let Some(gltf_path) = self.extract_gltf_path_from_dmoon(path) {
+                    println!("Found GLTF reference in dmoon file: {}", gltf_path.display());
+                    
+                    let gltf_result = self.load_and_analyze_gltf(&gltf_path);
+                    
+                    match gltf_result {
+                        Ok(nodes) => {
+                            elem.mesh_nodes = nodes;
+                            elem.is_compound = elem.mesh_nodes.len() > 1;
+                            
+                            println!("Analyzed referenced GLTF from dmoon '{}': Found {} mesh nodes", 
+                                gltf_path.display(), 
+                                elem.mesh_nodes.len()
+                            );
+                        }
+                        Err(e) => {
+                            println!("Warning: Failed to parse referenced GLTF '{}': {}. Using fallback.", gltf_path.display(), e);
+                            elem.mesh_nodes = vec![
+                                MeshNode {
+                                    name: Some("Fallback_Dmoon_Node".to_string()),
+                                    local_transform: SceneElementTransform::IDENTITY,
+                                    bounding_box: Some(Aabb::from_center_size(Vec3::ZERO, Vec3::splat(2.0))),
+                                },
+                            ];
+                            elem.is_compound = false;
+                        }
+                    }
+                } else {
+                    println!("No GLTF reference found in dmoon file: {}", path.display());
+                }
             }
         }
         
         Ok(())
     }
+
+    /// Extract the GLTF path referenced by a dmoon file
+    fn extract_gltf_path_from_dmoon(&self, dmoon_path: &std::path::Path) -> Option<std::path::PathBuf> {
+        use std::fs;
+        
+        // Try to read and parse the dmoon file
+        if let Ok(content) = fs::read_to_string(dmoon_path) {
+            // Look for mesh references in the dmoon content
+            // This is a simple approach - looking for .gltf or .glb file references
+            for line in content.lines() {
+                if line.contains("mesh:") && (line.contains(".gltf") || line.contains(".glb")) {
+                    // Extract the path between quotes
+                    if let Some(start) = line.find('"') {
+                        if let Some(end) = line.rfind('"') {
+                            if start < end {
+                                let mesh_path = &line[start+1..end];
+                                
+                                // Remove leading slash if present and construct full path
+                                let mesh_path = mesh_path.trim_start_matches('/');
+                                let full_path = std::path::Path::new("assets").join(mesh_path);
+                                
+                                println!("Extracted GLTF path from dmoon: {}", full_path.display());
+                                return Some(full_path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        None
+    }
+
+    /// Load and analyze a GLTF file to extract mesh nodes
+    fn load_and_analyze_gltf(&self, path: &std::path::Path) -> anyhow::Result<Vec<MeshNode>> {
+        use std::fs::File;
+        use std::io::BufReader;
+        
+        // Resolve the full path (GLTF files are typically in assets/)
+        let full_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::path::Path::new("assets").join(path)
+        };
+
+        println!("Attempting to load GLTF from: {}", full_path.display());
+
+        // Try to load the GLTF file
+        let file = File::open(&full_path)
+            .with_context(|| format!("Failed to open GLTF file: {}", full_path.display()))?;
+        
+        let reader = BufReader::new(file);
+        let gltf = gltf::Gltf::from_reader(reader)
+            .with_context(|| format!("Failed to parse GLTF file: {}", full_path.display()))?;
+
+        let mut mesh_nodes = Vec::new();
+
+        // Print basic GLTF info
+        println!("GLTF file loaded successfully:");
+        println!("  - Scenes: {}", gltf.scenes().count());
+        println!("  - Nodes: {}", gltf.nodes().count());
+        println!("  - Meshes: {}", gltf.meshes().count());
+        
+        // Iterate through all scenes in the GLTF
+        for (scene_idx, scene) in gltf.scenes().enumerate() {
+            println!("Processing scene {}: {:?}", scene_idx, scene.name().unwrap_or("unnamed"));
+            
+            // Process each root node in the scene
+            for node in scene.nodes() {
+                self.process_gltf_node(&node, Mat4::IDENTITY, &mut mesh_nodes)?;
+            }
+        }
+
+        if mesh_nodes.is_empty() {
+            return Err(anyhow::anyhow!("No mesh nodes found in GLTF file"));
+        }
+
+        println!("Successfully extracted {} mesh nodes from GLTF", mesh_nodes.len());
+        for (idx, node) in mesh_nodes.iter().enumerate() {
+            println!("  Node {}: '{}' at {:?}", 
+                idx, 
+                node.name.as_deref().unwrap_or("unnamed"), 
+                node.local_transform.position
+            );
+        }
+        
+        Ok(mesh_nodes)
+    }
+
+    /// Recursively process GLTF nodes and extract mesh information
+    fn process_gltf_node(
+        &self, 
+        node: &gltf::Node, 
+        parent_transform: Mat4,
+        mesh_nodes: &mut Vec<MeshNode>
+    ) -> anyhow::Result<()> {
+        let node_name = node.name().unwrap_or("unnamed");
+        println!("Processing node: '{}'", node_name);
+        
+        // Get node transform
+        let node_transform = Mat4::from_cols_array_2d(&node.transform().matrix());
+        let combined_transform = parent_transform * node_transform;
+
+        // If this node has a mesh, create a MeshNode
+        if let Some(mesh) = node.mesh() {
+            // Extract position, rotation, and scale from the transform matrix
+            let (scale, rotation, translation) = combined_transform.to_scale_rotation_translation();
+            
+            // Convert rotation quaternion to Euler angles
+            let (x, y, z) = rotation.to_euler(dolly::glam::EulerRot::YXZ);
+            let rotation_degrees = Vec3::new(
+                x.to_degrees(),
+                y.to_degrees(), 
+                z.to_degrees()
+            );
+
+            // Create bounding box based on mesh (for now, use a reasonable default)
+            let max_scale = scale.max_element();
+            let bounding_size = Vec3::splat(max_scale * 2.0); // Reasonable default based on scale
+            
+            let mesh_node = MeshNode {
+                name: Some(node_name.to_string()),
+                local_transform: SceneElementTransform {
+                    position: translation,
+                    rotation_euler_degrees: rotation_degrees,
+                    scale,
+                },
+                bounding_box: Some(Aabb::from_center_size(translation, bounding_size)),
+            };
+
+            mesh_nodes.push(mesh_node);
+            
+            println!("  -> Found mesh node: '{}' at position {:?} (primitives: {})", 
+                node_name, 
+                translation,
+                mesh.primitives().count()
+            );
+        } else {
+            println!("  -> Node '{}' has no mesh, checking children", node_name);
+        }
+
+        // Recursively process child nodes
+        let child_count = node.children().count();
+        if child_count > 0 {
+            println!("  -> Processing {} children of '{}'", child_count, node_name);
+            for child in node.children() {
+                self.process_gltf_node(&child, combined_transform, mesh_nodes)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    //...existing code...
 }
 
 #[derive(PartialEq, Eq)]
