@@ -342,11 +342,12 @@ fn create_imgui_framebuffer(
 
 // Based on https://github.com/ocornut/imgui/issues/707#issuecomment-430613104
 fn setup_imgui_style(ctx: &mut imgui::Context) {
-    let hi = |v: f32| [0.502, 0.075, 0.256, v];
-    let med = |v: f32| [0.455, 0.198, 0.301, v];
-    let low = |v: f32| [0.232, 0.201, 0.271, v];
-    let bg = |v: f32| [0.200, 0.220, 0.270, v];
-    let text = |v: f32| [0.860, 0.930, 0.890, v];
+
+    let hi = |v: f32| [0.3, 0.6, 0.3, v];
+    let med = |v: f32| [0.25, 0.5, 0.25, v];
+    let low = |v: f32| [0.18, 0.32, 0.18, v];
+    let bg = |v: f32| [0.07, 0.09, 0.09, v];
+    let text = |v: f32| [1.0, 1.0, 1.0, v];
 
     let style = ctx.style_mut();
     style.colors[imgui::StyleColor::Text as usize] = text(0.78);

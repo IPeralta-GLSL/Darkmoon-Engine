@@ -1,7 +1,7 @@
 (
     camera: (
-        position: (4.2461114, -1.7873772, -0.8784529),
-        rotation: (-0.04361211, 0.4796308, 0.023877015, 0.87606066),
+        position: (4.892392, -0.6122447, 0.48668894),
+        rotation: (-0.21237591, 0.42370272, 0.1028956, 0.8745199),
         vertical_fov: 62,
     ),
     light: (
@@ -9,7 +9,7 @@
         enable_emissive: true,
         sun: (
             controller: (
-                towards_sun: (0, 1, 0),
+                towards_sun: (-0.00089788786, 0.9999904, -0.004285354),
             ),
             size_multiplier: 1,
         ),
@@ -40,7 +40,7 @@
     scene: (
         elements: [
             (
-                source: File("/home/iperalta/Documents/GitHub/kajiya/assets/meshes/flying_world_-_battle_of_the_trash_god/scene.gltf"),
+                source: File("/home/iperalta/Documents/GitHub/Darkmoon Engine/assets/meshes/flying_world_-_battle_of_the_trash_god/scene.gltf"),
                 transform: (
                     position: (11, -3, -0.75),
                     rotation_euler_degrees: (0, 0, 0),
