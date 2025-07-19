@@ -1,7 +1,7 @@
 (
     camera: (
-        position: (3.0391726, -2.1132753, -0.098407626),
-        rotation: (0.031039739, -0.27465385, -0.008871145, -0.9610011),
+        position: (3.0162575, -1.6662161, -1.339983),
+        rotation: (0.10658663, -0.86699224, -0.21054867, -0.43889984),
         vertical_fov: 62,
     ),
     light: (
@@ -9,7 +9,7 @@
         enable_emissive: true,
         sun: (
             controller: (
-                towards_sun: (0.0019137101, 0.9998467, -0.01740644),
+                towards_sun: (0, 1, 0),
             ),
             size_multiplier: 1,
         ),
@@ -62479,9 +62479,10 @@
     ),
     frustum_culling: (
         enabled: true,
-        debug_logging: false,
+        debug_logging: true,
         log_interval_frames: 120,
         default_object_size: 2,
         use_sphere_culling: false,
+        culling_method: MoveAway,
     ),
 )

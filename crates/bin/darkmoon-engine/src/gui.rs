@@ -286,6 +286,39 @@ impl RuntimeState {
                         &mut persisted.frustum_culling.use_sphere_culling,
                     );
 
+                    // Culling method selection
+                    ui.text(im_str!("Culling Method:"));
+                    let current_method = &mut persisted.frustum_culling.culling_method;
+                    
+                    let mut is_emissive = matches!(current_method, crate::culling::CullingMethod::EmissiveMultiplier);
+                    let mut is_move_away = matches!(current_method, crate::culling::CullingMethod::MoveAway);
+                    let mut is_scale_zero = matches!(current_method, crate::culling::CullingMethod::ScaleToZero);
+                    
+                    if ui.checkbox(im_str!("Emissive Multiplier"), &mut is_emissive) && is_emissive {
+                        *current_method = crate::culling::CullingMethod::EmissiveMultiplier;
+                    }
+                    if ui.checkbox(im_str!("Move Away"), &mut is_move_away) && is_move_away {
+                        *current_method = crate::culling::CullingMethod::MoveAway;
+                    }
+                    if ui.checkbox(im_str!("Scale to Zero"), &mut is_scale_zero) && is_scale_zero {
+                        *current_method = crate::culling::CullingMethod::ScaleToZero;
+                    }
+                    
+                    // Show description for the selected method
+                    ui.separator();
+                    ui.text(im_str!("Method Description:"));
+                    match current_method {
+                        crate::culling::CullingMethod::EmissiveMultiplier => {
+                            ui.text_wrapped(im_str!("Makes objects invisible by setting emissive to 0. Least GPU-efficient."));
+                        }
+                        crate::culling::CullingMethod::MoveAway => {
+                            ui.text_wrapped(im_str!("Moves objects far away. More GPU-efficient as objects are naturally culled by depth."));
+                        }
+                        crate::culling::CullingMethod::ScaleToZero => {
+                            ui.text_wrapped(im_str!("Scales objects to zero size. Very GPU-efficient for triangle culling."));
+                        }
+                    }
+
                     imgui::Drag::<f32>::new(im_str!("Default object size"))
                         .range(0.1..=10.0)
                         .speed(0.1)

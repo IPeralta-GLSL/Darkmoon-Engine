@@ -18,7 +18,7 @@ use crate::{
     sequence::{CameraPlaybackSequence, MemOption, SequenceValue},
     PersistedState,
     math::{Aabb, Frustum},
-    culling::FrustumCullingConfig,
+    culling::{CullingMethod, FrustumCullingConfig},
 };
 
 use crate::keymap::KeymapConfig;
@@ -527,10 +527,37 @@ impl RuntimeState {
                 ctx.world_renderer
                     .set_instance_transform(elem.instance, elem.transform.affine_transform());
             } else {
-                // For culled objects, make them invisible by setting emissive to 0
-                ctx.world_renderer
-                    .get_instance_dynamic_parameters_mut(elem.instance)
-                    .emissive_multiplier = 0.0;
+                // Apply culling based on the chosen method
+                match persisted.frustum_culling.culling_method {
+                    CullingMethod::EmissiveMultiplier => {
+                        // Make objects invisible by setting emissive to 0
+                        ctx.world_renderer
+                            .get_instance_dynamic_parameters_mut(elem.instance)
+                            .emissive_multiplier = 0.0;
+                    }
+                    CullingMethod::MoveAway => {
+                        // Move objects far away (more effective for GPU culling)
+                        ctx.world_renderer
+                            .get_instance_dynamic_parameters_mut(elem.instance)
+                            .emissive_multiplier = 0.0;
+                        
+                        let mut culled_transform = elem.transform.clone();
+                        culled_transform.position = Vec3::new(1000000.0, 1000000.0, 1000000.0);
+                        ctx.world_renderer
+                            .set_instance_transform(elem.instance, culled_transform.affine_transform());
+                    }
+                    CullingMethod::ScaleToZero => {
+                        // Scale objects to zero size (effective for GPU culling)
+                        ctx.world_renderer
+                            .get_instance_dynamic_parameters_mut(elem.instance)
+                            .emissive_multiplier = 0.0;
+                        
+                        let mut culled_transform = elem.transform.clone();
+                        culled_transform.scale = Vec3::ZERO;
+                        ctx.world_renderer
+                            .set_instance_transform(elem.instance, culled_transform.affine_transform());
+                    }
+                }
             }
         }
 

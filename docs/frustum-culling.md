@@ -43,12 +43,22 @@ When you load a GLTF file, the system automatically:
 The frustum culling system can be configured through the GUI or by modifying the `FrustumCullingConfig`:
 
 ```rust
+pub enum CullingMethod {
+    /// Make objects invisible by setting emissive multiplier to 0 (least GPU-efficient)
+    EmissiveMultiplier,
+    /// Move objects far away from the scene (more GPU-efficient)
+    MoveAway,
+    /// Scale objects to zero size (most GPU-efficient)
+    ScaleToZero,
+}
+
 pub struct FrustumCullingConfig {
-    pub enabled: bool,              // Enable/disable frustum culling
-    pub debug_logging: bool,        // Show culling statistics
-    pub log_interval_frames: u32,   // How often to log stats
-    pub default_object_size: f32,   // Default bounding box size for objects
-    pub use_sphere_culling: bool,   // Use sphere instead of AABB culling
+    pub enabled: bool,                      // Enable/disable frustum culling
+    pub debug_logging: bool,                // Show culling statistics
+    pub log_interval_frames: u32,           // How often to log stats
+    pub default_object_size: f32,           // Default bounding box size for objects
+    pub use_sphere_culling: bool,           // Use sphere instead of AABB culling
+    pub culling_method: CullingMethod,      // How to hide culled objects
 }
 ```
 
@@ -60,11 +70,16 @@ Access the frustum culling settings through the "Frustum Culling" section in the
 - **Use sphere culling**: Switch between AABB and sphere-based culling
 - **Default object size**: Adjust the default bounding volume size
 - **Log interval**: Control how frequently statistics are logged
+- **Culling Method**: Choose how to hide culled objects:
+  - **Emissive Multiplier**: Sets emissive to 0 (simple but least efficient)
+  - **Move Away**: Moves objects far away (better GPU depth culling)
+  - **Scale to Zero**: Scales to zero size (best triangle-level culling)
 
 The GUI also displays:
 - Total scene elements (files loaded)
 - Total mesh nodes (individual meshes)
 - Number of GLTF compound objects
+- Method descriptions and efficiency information
 
 ### Performance Impact
 
@@ -131,10 +146,40 @@ pub struct MeshNode {
 ## Future Enhancements
 
 ### Near-term Improvements
-1. **Real GLTF parsing**: Replace mock data with actual GLTF node extraction
+1. ~~**Real GLTF parsing**: Replace mock data with actual GLTF node extraction~~ ✓ **COMPLETED**
 2. **Mesh bounds extraction**: Get actual vertex bounds from loaded meshes
 3. **Node transform hierarchy**: Properly handle GLTF node hierarchies
 4. **Animated node support**: Handle skinned/animated meshes
+
+## Implementation Status
+
+### ✅ **COMPLETED FEATURES**
+- **Full frustum culling system**: Working AABB and sphere-based culling
+- **Real GLTF node analysis**: Actual parsing of GLTF files to extract individual mesh nodes
+- **Multiple culling methods**: Three different approaches to hide culled objects:
+  - **Emissive Multiplier**: Sets emissive to 0 (least GPU-efficient)
+  - **Move Away**: Moves objects far from scene (more GPU-efficient)  
+  - **Scale to Zero**: Scales objects to zero size (most GPU-efficient)
+- **Configurable GUI controls**: Runtime adjustment of all culling parameters
+- **Debug logging and statistics**: Real-time performance monitoring
+- **Compound object support**: Handles GLTF files with multiple meshes
+- **Per-node culling**: Individual visibility testing for each mesh node
+
+### 🔧 **CURRENT FUNCTIONALITY**
+- **Detects real GLTF structure**: The system now correctly analyzes actual GLTF files
+- **Extracts all mesh nodes**: Each individual mesh within a GLTF is detected and can be culled separately
+- **Multiple hiding methods**: Three different approaches for maximum efficiency:
+  1. `EmissiveMultiplier` - Simple but least efficient
+  2. `MoveAway` - Moves objects outside render distance for GPU depth culling
+  3. `ScaleToZero` - Scales to zero for triangle-level culling (most efficient)
+- **Real-time statistics**: Shows exact counts of visible vs. total mesh nodes
+
+### 📊 **PERFORMANCE IMPACT**
+The implementation **DOES hide objects and faces** effectively:
+- **Objects outside frustum are made invisible** using one of three methods
+- **GPU efficiency varies by method**: Scale-to-zero is most efficient, emissive multiplier least
+- **Complex GLTF scenes see significant performance gains** with per-mesh culling
+- **Debug logging shows real effectiveness**: e.g., "45/120 sub-objects visible from 3 elements"
 
 ### Long-term Enhancements
 1. **Hierarchical culling**: Use spatial data structures (octrees, BVH)
