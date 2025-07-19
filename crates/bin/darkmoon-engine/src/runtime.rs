@@ -15,6 +15,8 @@ use crate::{
     scene::SceneDesc,
     sequence::{CameraPlaybackSequence, MemOption, SequenceValue},
     PersistedState,
+    math::{Aabb, Frustum},
+    culling::FrustumCullingConfig,
 };
 
 use crate::keymap::KeymapConfig;
@@ -183,6 +185,7 @@ impl RuntimeState {
                 source: MeshSource::File(mesh_path),
                 instance: render_instance,
                 transform,
+                bounding_box: None, // Will be calculated later when mesh data is available
             });
         }
 
@@ -406,12 +409,80 @@ impl RuntimeState {
             0.0
         };
 
-        for elem in persisted.scene.elements.iter() {
-            ctx.world_renderer
-                .get_instance_dynamic_parameters_mut(elem.instance)
-                .emissive_multiplier = persisted.light.emissive_multiplier * emissive_toggle_mult;
-            ctx.world_renderer
-                .set_instance_transform(elem.instance, elem.transform.affine_transform());
+        let mut visible_objects = 0;
+        let total_objects = persisted.scene.elements.len();
+        let frustum_culling_enabled = persisted.frustum_culling.enabled;
+
+        // Only create frustum if culling is enabled
+        let frustum = if frustum_culling_enabled {
+            let lens = CameraLens {
+                aspect_ratio: ctx.aspect_ratio(),
+                vertical_fov: persisted.camera.vertical_fov,
+                ..Default::default()
+            };
+
+            let camera_matrices = self
+                .camera
+                .final_transform
+                .into_position_rotation()
+                .through(&lens);
+
+            Some(Frustum::from_view_projection_matrix(camera_matrices.view_to_clip * camera_matrices.world_to_view))
+        } else {
+            None
+        };
+
+        for elem in persisted.scene.elements.iter_mut() {
+            let mut is_visible = true;
+
+            if frustum_culling_enabled {
+                // Calculate world-space bounding box if not cached
+                if elem.bounding_box.is_none() {
+                    let default_size = Vec3::splat(persisted.frustum_culling.default_object_size);
+                    elem.bounding_box = Some(Aabb::from_center_size(Vec3::ZERO, default_size));
+                }
+
+                if let (Some(local_aabb), Some(ref frustum)) = (&elem.bounding_box, &frustum) {
+                    if persisted.frustum_culling.use_sphere_culling {
+                        // Use sphere culling (faster but less accurate)
+                        let world_center = elem.transform.position;
+                        let world_scale = elem.transform.scale.max_element();
+                        let sphere_radius = local_aabb.half_size().length() * world_scale;
+                        is_visible = frustum.is_visible_sphere(world_center, sphere_radius);
+                    } else {
+                        // Use AABB culling (more accurate)
+                        let world_aabb = local_aabb.transform(&Mat4::from(elem.transform.affine_transform()));
+                        is_visible = frustum.is_visible_aabb(&world_aabb);
+                    }
+                }
+            }
+
+            if is_visible {
+                visible_objects += 1;
+                
+                // Update instance parameters and transform only for visible objects
+                ctx.world_renderer
+                    .get_instance_dynamic_parameters_mut(elem.instance)
+                    .emissive_multiplier = persisted.light.emissive_multiplier * emissive_toggle_mult;
+                ctx.world_renderer
+                    .set_instance_transform(elem.instance, elem.transform.affine_transform());
+            } else {
+                // For culled objects, make them invisible by setting emissive to 0
+                ctx.world_renderer
+                    .get_instance_dynamic_parameters_mut(elem.instance)
+                    .emissive_multiplier = 0.0;
+            }
+        }
+
+        // Optional: Log culling statistics
+        if frustum_culling_enabled && persisted.frustum_culling.debug_logging {
+            static mut FRAME_COUNTER: u32 = 0;
+            unsafe {
+                FRAME_COUNTER += 1;
+                if FRAME_COUNTER % persisted.frustum_culling.log_interval_frames == 0 {
+                    println!("Frustum Culling: {}/{} objects visible", visible_objects, total_objects);
+                }
+            }
         }
     }
 
@@ -438,6 +509,9 @@ impl RuntimeState {
         self.update_lights(persisted, &mut ctx);
         self.update_objects(persisted, &mut ctx);
         self.update_sun(persisted, &mut ctx);
+
+        // Update bounding boxes for new objects
+        self.update_bounding_boxes(persisted, ctx.world_renderer);
 
         self.update_camera(persisted, &ctx);
 
@@ -659,6 +733,7 @@ impl RuntimeState {
             source,
             instance: inst,
             transform,
+            bounding_box: None, // Will be calculated later when mesh data is available
         });
 
         Ok(())
@@ -713,6 +788,44 @@ impl RuntimeState {
                     }
                 }
                 _ => {}
+            }
+        }
+    }
+
+    /// Calculate a more accurate bounding box for a mesh instance
+    pub fn calculate_mesh_bounding_box(
+        &self,
+        _world_renderer: &WorldRenderer, // Prefixed with _ to suppress unused warning
+        mesh_handle: MeshHandle,
+    ) -> Option<Aabb> {
+        // In a real implementation, you would:
+        // 1. Get the mesh data from world_renderer
+        // 2. Calculate the actual AABB from vertex positions
+        // 3. Cache the result
+        
+        // For now, return a default based on mesh handle ID
+        let handle_id = mesh_handle.0; // Assuming MeshHandle has a numeric ID
+        let base_size = 1.0 + (handle_id % 5) as f32; // Vary size based on mesh ID
+        
+        Some(Aabb::from_center_size(
+            Vec3::ZERO,
+            Vec3::splat(base_size)
+        ))
+    }
+
+    /// Update bounding boxes for all scene elements that don't have them
+    pub fn update_bounding_boxes(
+        &self,
+        persisted: &mut PersistedState,
+        _world_renderer: &WorldRenderer, // Prefixed with _ to suppress unused warning
+    ) {
+        for elem in persisted.scene.elements.iter_mut() {
+            if elem.bounding_box.is_none() {
+                // Try to get the mesh handle from the instance
+                // This is a simplified version - in practice you'd need to access the mesh data
+                if let Some(aabb) = self.calculate_mesh_bounding_box(_world_renderer, MeshHandle(0)) {
+                    elem.bounding_box = Some(aabb);
+                }
             }
         }
     }

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use kajiya::world_renderer::InstanceHandle;
 use kajiya_simple::{Affine3A, EulerRot, Mat2, Quat, Vec2, Vec3, Vec3Swizzles};
 
-use crate::{misc::smoothstep, sequence::Sequence};
+use crate::{misc::smoothstep, sequence::Sequence, math::Aabb, culling::FrustumCullingConfig};
 
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SunState {
@@ -295,6 +295,9 @@ pub struct SceneElement {
 
     pub source: MeshSource,
     pub transform: SceneElementTransform,
+    
+    #[serde(skip)]
+    pub bounding_box: Option<Aabb>,
 }
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -320,6 +323,8 @@ pub struct PersistedState {
     pub sequence: Sequence,
     #[serde(default)]
     pub scene: SceneState,
+    #[serde(default)]
+    pub frustum_culling: FrustumCullingConfig,
 }
 
 impl ShouldResetPathTracer for PersistedState {

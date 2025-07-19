@@ -266,6 +266,58 @@ impl RuntimeState {
                     }
                 }
 
+                // Frustum Culling settings
+                if imgui::CollapsingHeader::new(im_str!("Frustum Culling"))
+                    .default_open(false)
+                    .build(ui)
+                {
+                    ui.checkbox(
+                        im_str!("Enable frustum culling"),
+                        &mut persisted.frustum_culling.enabled,
+                    );
+
+                    ui.checkbox(
+                        im_str!("Debug logging"),
+                        &mut persisted.frustum_culling.debug_logging,
+                    );
+
+                    ui.checkbox(
+                        im_str!("Use sphere culling (faster)"),
+                        &mut persisted.frustum_culling.use_sphere_culling,
+                    );
+
+                    imgui::Drag::<f32>::new(im_str!("Default object size"))
+                        .range(0.1..=10.0)
+                        .speed(0.1)
+                        .build(ui, &mut persisted.frustum_culling.default_object_size);
+
+                    imgui::Drag::<u32>::new(im_str!("Log interval (frames)"))
+                        .range(30..=600)
+                        .speed(10.0)
+                        .build(ui, &mut persisted.frustum_culling.log_interval_frames);
+
+                    // Display culling statistics
+                    ui.text(im_str!("Culling Stats:"));
+                    ui.text(format!(
+                        "Total objects: {}",
+                        persisted.scene.elements.len()
+                    ));
+                    
+                    if persisted.frustum_culling.enabled {
+                        ui.text_colored([0.0, 1.0, 0.0, 1.0], im_str!("Status: Enabled"));
+                        ui.text(format!(
+                            "Method: {}",
+                            if persisted.frustum_culling.use_sphere_culling {
+                                "Sphere"
+                            } else {
+                                "AABB"
+                            }
+                        ));
+                    } else {
+                        ui.text_colored([1.0, 0.0, 0.0, 1.0], im_str!("Status: Disabled"));
+                    }
+                }
+
                 if imgui::CollapsingHeader::new(im_str!("Overrides"))
                     .default_open(false)
                     .build(ui)
