@@ -47,6 +47,17 @@ _Ruins environment rendered in kajiya. [Scene](https://www.unrealengine.com/mark
 ## Features
 
 * Hybrid rendering using a mixture of raster, compute, and ray-tracing
+* Multi-layered culling system:
+  * Frustum culling with AABB intersection tests
+  * Occlusion culling with software depth buffer
+  * Triangle-level culling (back-face, small triangles, view-dependent)
+  * Real-time GUI controls and comprehensive statistics
+* Resource streaming system:
+  * Asynchronous, priority-based asset loading
+  * Smart caching with LRU/LFU eviction policies
+  * Level of Detail (LOD) management
+  * Background loading with configurable worker threads
+  * Real-time GUI monitoring and controls
 * Dynamic global illumination
   * Fully dynamic geometry and lighting without precomputation
   * Volumetric temporally-recurrent irradiance cache for "infinite" bounces
@@ -68,6 +79,8 @@ _Ruins environment rendered in kajiya. [Scene](https://www.unrealengine.com/mark
 ## Technical details
 
 * [Global illumination overview](docs/gi-overview.md)
+* [Frustum and occlusion culling system](docs/frustum-culling.md)
+* [Resource streaming system](docs/resource-streaming.md)
 * Repository highlights:
   * HLSL shaders: [`assets/shaders/`](assets/shaders)
   * Rust shaders: [`crates/lib/rust-shaders/`](crates/lib/rust-shaders)
@@ -215,3 +228,28 @@ This contribution is dual licensed under EITHER OF
 at your option.
 
 For clarity, "your" refers to Embark or any other licensee/user of the contribution.
+
+## Resource Streaming System
+
+`kajiya` now includes an advanced **resource streaming system** that optimizes asset loading and memory usage:
+
+### Key Features
+- **Asynchronous loading**: Non-blocking asset loading with configurable worker threads
+- **Level-of-Detail (LOD)**: Automatic quality adjustment based on distance and screen size
+- **Intelligent caching**: Smart memory management with configurable eviction policies
+- **Priority-based loading**: Critical resources are loaded first
+- **Predictive loading**: Anticipates resource needs based on camera movement
+
+### Usage
+```rust
+// Initialize streaming (usually done at engine startup)
+let streaming_manager = resource_streaming::initialize_streaming(config).await?;
+
+// Request resources with priority
+let mesh_handle = streaming_manager.request_resource("models/character.gltf", LoadPriority::High);
+
+// Update each frame
+streaming_manager.update(&camera_position, &camera_direction);
+```
+
+The streaming system is automatically integrated into the Darkmoon Engine and provides significant performance improvements for large scenes. See [`crates/lib/resource-streaming/`](crates/lib/resource-streaming/) for detailed documentation.

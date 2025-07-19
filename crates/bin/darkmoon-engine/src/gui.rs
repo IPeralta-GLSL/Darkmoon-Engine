@@ -528,6 +528,14 @@ impl RuntimeState {
                     }
                 }
 
+                // Resource Streaming Section
+                if imgui::CollapsingHeader::new(im_str!("Resource Streaming"))
+                    .default_open(false)
+                    .build(ui)
+                {
+                    self.streaming_integration.render_gui(ui);
+                }
+
                 if imgui::CollapsingHeader::new(im_str!("Overrides"))
                     .default_open(false)
                     .build(ui)

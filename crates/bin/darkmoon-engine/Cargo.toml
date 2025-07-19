@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 kajiya = { path = "../../lib/kajiya" }
 kajiya-backend = { path = "../../lib/kajiya-backend" }  # New: for shader progress tracking
+resource-streaming = { path = "../../lib/resource-streaming" }  # Resource streaming system
 kajiya-simple = { path = "../../lib/kajiya-simple", features = ["dear-imgui", "winit_serde"] }
 kajiya-asset-pipe = { path = "../../lib/kajiya-asset-pipe"}
 
@@ -15,12 +16,16 @@ anyhow = "1.0"
 dolly = "=0.4.0"
 gltf = { git = "https://github.com/gltf-rs/gltf.git", rev = "b9c04be69363b8353d58f99aa1008ead93020851", features = ["KHR_texture_transform", "KHR_materials_pbrSpecularGlossiness"] }
 imgui = "0.7"
-log = "0.4"
+log = "0.4.22"
 ron = "0.6.2"
 serde = { version = "1.0", features = ["derive"] }
 structopt = "0.3"
 toml = "0.7.2"
 splines = { version = "4.2.0", features = ["glam"] }
+num_cpus = "1.16"  # New: for streaming worker thread calculation
+tokio = { version = "1.0", features = ["rt-multi-thread"] }  # New: for async streaming
+futures = "0.3"  # New: for futures executor
+parking_lot = "0.12"  # New: for RwLock in streaming
 
 [features]
 dlss = ["kajiya/dlss"]

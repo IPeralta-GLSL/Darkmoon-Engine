@@ -56,6 +56,7 @@ pub struct RuntimeState {
     known_meshes: HashMap<PathBuf, MeshHandle>,
     occlusion_culler: OcclusionCuller,
     triangle_culler: TriangleCuller,
+    pub streaming_integration: crate::streaming_integration::StreamingIntegration,
 }
 
 enum SequencePlaybackState {
@@ -118,6 +119,7 @@ impl RuntimeState {
             known_meshes: Default::default(),
             occlusion_culler: OcclusionCuller::new(persisted.occlusion_culling.clone()),
             triangle_culler: TriangleCuller::new(persisted.triangle_culling.clone()),
+            streaming_integration: crate::streaming_integration::StreamingIntegration::new(),
         };
 
         // Load meshes that the persisted scene was referring to
@@ -141,6 +143,10 @@ impl RuntimeState {
                 persisted.scene.ibl = None;
             }
         }
+
+        // Initialize streaming system automatically
+        res.streaming_integration.request_initialization();
+        log::info!("Resource streaming system initialized automatically at startup");
 
         res
     }
@@ -694,6 +700,14 @@ impl RuntimeState {
         let orig_render_overrides = ctx.world_renderer.render_overrides;
 
         self.do_gui(persisted, &mut ctx);
+        
+        // Procesar inicialización pendiente del streaming
+        if let Err(e) = futures::executor::block_on(
+            self.streaming_integration.process_pending_initialization()
+        ) {
+            log::error!("Error procesando inicialización de streaming: {}", e);
+        }
+        
         self.update_lights(persisted, &mut ctx);
         self.update_objects(persisted, &mut ctx);
         self.update_sun(persisted, &mut ctx);
