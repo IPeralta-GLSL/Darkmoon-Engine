@@ -331,6 +331,8 @@ pub struct PersistedState {
     pub scene: SceneState,
     #[serde(default)]
     pub frustum_culling: FrustumCullingConfig,
+    #[serde(default)]
+    pub occlusion_culling: crate::math::OcclusionCullingConfig,
 }
 
 impl ShouldResetPathTracer for PersistedState {

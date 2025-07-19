@@ -359,6 +359,55 @@ impl RuntimeState {
                     }
                 }
 
+                // Occlusion Culling settings
+                if imgui::CollapsingHeader::new(im_str!("Occlusion Culling"))
+                    .default_open(false)
+                    .build(ui)
+                {
+                    ui.checkbox(
+                        im_str!("Enable occlusion culling"),
+                        &mut persisted.occlusion_culling.enabled,
+                    );
+
+                    ui.checkbox(
+                        im_str!("Debug visualization"),
+                        &mut persisted.occlusion_culling.debug_visualize,
+                    );
+
+                    imgui::Drag::<u32>::new(im_str!("Depth buffer resolution"))
+                        .range(64..=512)
+                        .speed(1.0)
+                        .build(ui, &mut persisted.occlusion_culling.depth_buffer_resolution);
+
+                    imgui::Drag::<f32>::new(im_str!("Depth bias"))
+                        .range(0.0..=0.1)
+                        .speed(0.001)
+                        .build(ui, &mut persisted.occlusion_culling.depth_bias);
+
+                    imgui::Drag::<u32>::new(im_str!("Sample count per object"))
+                        .range(1..=8)
+                        .speed(1.0)
+                        .build(ui, &mut persisted.occlusion_culling.sample_count);
+
+                    imgui::Drag::<f32>::new(im_str!("Max test distance"))
+                        .range(10.0..=5000.0)
+                        .speed(10.0)
+                        .build(ui, &mut persisted.occlusion_culling.max_test_distance);
+
+                    ui.separator();
+                    ui.text(im_str!("Occlusion Culling Info:"));
+                    ui.text_wrapped(im_str!("Hides objects that are blocked by other objects closer to the camera. Works in combination with frustum culling for maximum efficiency."));
+                    
+                    if persisted.occlusion_culling.enabled {
+                        ui.text_colored([0.0, 1.0, 0.0, 1.0], im_str!("Status: Enabled"));
+                        ui.text(format!("Depth resolution: {}x{}", 
+                            persisted.occlusion_culling.depth_buffer_resolution,
+                            persisted.occlusion_culling.depth_buffer_resolution));
+                    } else {
+                        ui.text_colored([1.0, 0.0, 0.0, 1.0], im_str!("Status: Disabled"));
+                    }
+                }
+
                 if imgui::CollapsingHeader::new(im_str!("Overrides"))
                     .default_open(false)
                     .build(ui)

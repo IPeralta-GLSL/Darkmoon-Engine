@@ -17,8 +17,8 @@ use crate::{
     scene::SceneDesc,
     sequence::{CameraPlaybackSequence, MemOption, SequenceValue},
     PersistedState,
-    math::{Aabb, Frustum},
-    culling::{CullingMethod, FrustumCullingConfig},
+    math::{Aabb, Frustum, OcclusionCuller},
+    culling::CullingMethod,
 };
 
 use crate::keymap::KeymapConfig;
@@ -54,6 +54,7 @@ pub struct RuntimeState {
     pub sequence_playback_speed: f32,
 
     known_meshes: HashMap<PathBuf, MeshHandle>,
+    occlusion_culler: OcclusionCuller,
 }
 
 enum SequencePlaybackState {
@@ -114,6 +115,7 @@ impl RuntimeState {
             sequence_playback_speed: 1.0,
 
             known_meshes: Default::default(),
+            occlusion_culler: OcclusionCuller::new(persisted.occlusion_culling.clone()),
         };
 
         // Load meshes that the persisted scene was referring to
@@ -415,11 +417,17 @@ impl RuntimeState {
 
         let mut visible_objects = 0;
         let mut total_sub_objects = 0;
+        let mut frustum_culled = 0;
+        let mut occlusion_culled = 0;
         let total_elements = persisted.scene.elements.len();
         let frustum_culling_enabled = persisted.frustum_culling.enabled;
+        let occlusion_culling_enabled = persisted.occlusion_culling.enabled;
+
+        // Update occlusion culler config if changed
+        self.occlusion_culler.update_config(persisted.occlusion_culling.clone());
 
         // Only create frustum if culling is enabled
-        let frustum = if frustum_culling_enabled {
+        let (frustum, view_proj_matrix) = if frustum_culling_enabled || occlusion_culling_enabled {
             let lens = CameraLens {
                 aspect_ratio: ctx.aspect_ratio(),
                 vertical_fov: persisted.camera.vertical_fov,
@@ -432,11 +440,31 @@ impl RuntimeState {
                 .into_position_rotation()
                 .through(&lens);
 
-            Some(Frustum::from_view_projection_matrix(camera_matrices.view_to_clip * camera_matrices.world_to_view))
+            let view_proj = camera_matrices.view_to_clip * camera_matrices.world_to_view;
+            let frustum = Frustum::from_view_projection_matrix(view_proj);
+            (Some(frustum), Some(view_proj))
         } else {
-            None
+            (None, None)
         };
 
+        // Prepare occlusion culler for new frame
+        if occlusion_culling_enabled {
+            self.occlusion_culler.prepare_frame();
+        }
+
+        // PASS 1: Add visible objects as potential occluders
+        if occlusion_culling_enabled {
+            for elem in persisted.scene.elements.iter() {
+                if let Some(bounding_box) = &elem.bounding_box {
+                    let world_aabb = bounding_box.transform(&Mat4::from(elem.transform.affine_transform()));
+                    if let Some(ref view_proj) = view_proj_matrix {
+                        self.occlusion_culler.add_occluder(world_aabb, view_proj);
+                    }
+                }
+            }
+        }
+
+        // PASS 2: Test all objects for visibility
         for elem in persisted.scene.elements.iter_mut() {
             // Analyze GLTF files to extract nodes if not already done
             if elem.is_compound && elem.mesh_nodes.is_empty() {
@@ -447,26 +475,46 @@ impl RuntimeState {
 
             let mut element_is_visible = true;
             
-            if frustum_culling_enabled {
+            if frustum_culling_enabled || occlusion_culling_enabled {
                 if elem.is_compound && !elem.mesh_nodes.is_empty() {
                     // For compound objects (GLTF with multiple nodes), test each node
                     let mut any_node_visible = false;
                     
                     for node in &elem.mesh_nodes {
                         total_sub_objects += 1;
+                        let mut node_visible = true;
                         
-                        if let (Some(node_aabb), Some(ref frustum)) = (&node.bounding_box, &frustum) {
+                        if let Some(node_aabb) = &node.bounding_box {
                             // Transform node AABB to world space using both element and node transforms
                             let combined_transform = elem.transform.affine_transform() * node.local_transform.affine_transform();
                             let world_aabb = node_aabb.transform(&Mat4::from(combined_transform));
                             
-                            let node_visible = if persisted.frustum_culling.use_sphere_culling {
-                                let sphere_center = world_aabb.center();
-                                let sphere_radius = world_aabb.half_size().length();
-                                frustum.is_visible_sphere(sphere_center, sphere_radius)
-                            } else {
-                                frustum.is_visible_aabb(&world_aabb)
-                            };
+                            // Test frustum culling first
+                            if frustum_culling_enabled {
+                                if let Some(ref frustum) = frustum {
+                                    node_visible = if persisted.frustum_culling.use_sphere_culling {
+                                        let sphere_center = world_aabb.center();
+                                        let sphere_radius = world_aabb.half_size().length();
+                                        frustum.is_visible_sphere(sphere_center, sphere_radius)
+                                    } else {
+                                        frustum.is_visible_aabb(&world_aabb)
+                                    };
+                                    
+                                    if !node_visible {
+                                        frustum_culled += 1;
+                                    }
+                                }
+                            }
+                            
+                            // Test occlusion culling if still visible after frustum test
+                            if node_visible && occlusion_culling_enabled {
+                                if let Some(ref view_proj) = view_proj_matrix {
+                                    if self.occlusion_culler.is_occluded(&world_aabb, view_proj) {
+                                        node_visible = false;
+                                        occlusion_culled += 1;
+                                    }
+                                }
+                            }
                             
                             if node_visible {
                                 any_node_visible = true;
@@ -490,22 +538,40 @@ impl RuntimeState {
                         elem.bounding_box = Some(Aabb::from_center_size(Vec3::ZERO, default_size));
                     }
 
-                    if let (Some(local_aabb), Some(ref frustum)) = (&elem.bounding_box, &frustum) {
-                        if persisted.frustum_culling.use_sphere_culling {
-                            // Use sphere culling (faster but less accurate)
-                            let world_center = elem.transform.position;
-                            let world_scale = elem.transform.scale.max_element();
-                            let sphere_radius = local_aabb.half_size().length() * world_scale;
-                            element_is_visible = frustum.is_visible_sphere(world_center, sphere_radius);
-                        } else {
-                            // Use AABB culling (more accurate)
-                            let world_aabb = local_aabb.transform(&Mat4::from(elem.transform.affine_transform()));
-                            element_is_visible = frustum.is_visible_aabb(&world_aabb);
+                    if let Some(local_aabb) = &elem.bounding_box {
+                        let world_aabb = local_aabb.transform(&Mat4::from(elem.transform.affine_transform()));
+                        
+                        // Test frustum culling first
+                        if frustum_culling_enabled {
+                            if let Some(ref frustum) = frustum {
+                                element_is_visible = if persisted.frustum_culling.use_sphere_culling {
+                                    let world_center = elem.transform.position;
+                                    let world_scale = elem.transform.scale.max_element();
+                                    let sphere_radius = local_aabb.half_size().length() * world_scale;
+                                    frustum.is_visible_sphere(world_center, sphere_radius)
+                                } else {
+                                    frustum.is_visible_aabb(&world_aabb)
+                                };
+                                
+                                if !element_is_visible {
+                                    frustum_culled += 1;
+                                }
+                            }
                         }
-                    }
-                    
-                    if element_is_visible {
-                        visible_objects += 1;
+                        
+                        // Test occlusion culling if still visible after frustum test
+                        if element_is_visible && occlusion_culling_enabled {
+                            if let Some(ref view_proj) = view_proj_matrix {
+                                if self.occlusion_culler.is_occluded(&world_aabb, view_proj) {
+                                    element_is_visible = false;
+                                    occlusion_culled += 1;
+                                }
+                            }
+                        }
+                        
+                        if element_is_visible {
+                            visible_objects += 1;
+                        }
                     }
                 }
             } else {
@@ -519,6 +585,7 @@ impl RuntimeState {
                 }
             }
 
+            // Apply visibility results
             if element_is_visible {
                 // Update instance parameters and transform only for visible objects
                 ctx.world_renderer
@@ -562,13 +629,30 @@ impl RuntimeState {
         }
 
         // Optional: Log culling statistics
-        if frustum_culling_enabled && persisted.frustum_culling.debug_logging {
+        if (frustum_culling_enabled || occlusion_culling_enabled) && persisted.frustum_culling.debug_logging {
             static mut FRAME_COUNTER: u32 = 0;
             unsafe {
                 FRAME_COUNTER += 1;
                 if FRAME_COUNTER % persisted.frustum_culling.log_interval_frames == 0 {
-                    println!("Frustum Culling: {}/{} sub-objects visible from {} elements", 
+                    let mut log_msg = format!("Culling Stats: {}/{} sub-objects visible from {} elements", 
                         visible_objects, total_sub_objects, total_elements);
+                    
+                    if frustum_culling_enabled && occlusion_culling_enabled {
+                        log_msg += &format!(" (Frustum: {} culled, Occlusion: {} culled)", frustum_culled, occlusion_culled);
+                    } else if frustum_culling_enabled {
+                        log_msg += &format!(" (Frustum culling only)");
+                    } else if occlusion_culling_enabled {
+                        log_msg += &format!(" (Occlusion culling only)");
+                    }
+                    
+                    println!("{}", log_msg);
+                    
+                    // Show occlusion culling statistics
+                    if occlusion_culling_enabled {
+                        let stats = self.occlusion_culler.get_statistics();
+                        println!("  Occlusion Stats: {} occluders, {:.1}% depth buffer usage", 
+                            stats.total_occluders, stats.depth_buffer_usage);
+                    }
                 }
             }
         }
