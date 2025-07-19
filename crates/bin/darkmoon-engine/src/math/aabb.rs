@@ -1,6 +1,7 @@
 use kajiya_simple::{Mat4, Vec3};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Aabb {
     pub min: Vec3,
     pub max: Vec3,

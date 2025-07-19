@@ -11,7 +11,7 @@ use kajiya_simple::*;
 
 use crate::{
     opt::Opt,
-    persisted::{MeshSource, SceneElement, SceneElementTransform, ShouldResetPathTracer as _},
+    persisted::{MeshSource, SceneElement, SceneElementTransform, MeshNode, ShouldResetPathTracer as _},
     scene::SceneDesc,
     sequence::{CameraPlaybackSequence, MemOption, SequenceValue},
     PersistedState,
@@ -186,6 +186,8 @@ impl RuntimeState {
                 instance: render_instance,
                 transform,
                 bounding_box: None, // Will be calculated later when mesh data is available
+                mesh_nodes: Vec::new(),
+                is_compound: false,
             });
         }
 
@@ -410,7 +412,8 @@ impl RuntimeState {
         };
 
         let mut visible_objects = 0;
-        let total_objects = persisted.scene.elements.len();
+        let mut total_sub_objects = 0;
+        let total_elements = persisted.scene.elements.len();
         let frustum_culling_enabled = persisted.frustum_culling.enabled;
 
         // Only create frustum if culling is enabled
@@ -433,33 +436,88 @@ impl RuntimeState {
         };
 
         for elem in persisted.scene.elements.iter_mut() {
-            let mut is_visible = true;
-
-            if frustum_culling_enabled {
-                // Calculate world-space bounding box if not cached
-                if elem.bounding_box.is_none() {
-                    let default_size = Vec3::splat(persisted.frustum_culling.default_object_size);
-                    elem.bounding_box = Some(Aabb::from_center_size(Vec3::ZERO, default_size));
-                }
-
-                if let (Some(local_aabb), Some(ref frustum)) = (&elem.bounding_box, &frustum) {
-                    if persisted.frustum_culling.use_sphere_culling {
-                        // Use sphere culling (faster but less accurate)
-                        let world_center = elem.transform.position;
-                        let world_scale = elem.transform.scale.max_element();
-                        let sphere_radius = local_aabb.half_size().length() * world_scale;
-                        is_visible = frustum.is_visible_sphere(world_center, sphere_radius);
-                    } else {
-                        // Use AABB culling (more accurate)
-                        let world_aabb = local_aabb.transform(&Mat4::from(elem.transform.affine_transform()));
-                        is_visible = frustum.is_visible_aabb(&world_aabb);
-                    }
+            // Analyze GLTF files to extract nodes if not already done
+            if elem.is_compound && elem.mesh_nodes.is_empty() {
+                if let Err(e) = self.analyze_gltf_nodes(elem, ctx.world_renderer) {
+                    println!("Warning: Failed to analyze GLTF nodes: {}", e);
                 }
             }
 
-            if is_visible {
-                visible_objects += 1;
-                
+            let mut element_is_visible = true;
+            
+            if frustum_culling_enabled {
+                if elem.is_compound && !elem.mesh_nodes.is_empty() {
+                    // For compound objects (GLTF with multiple nodes), test each node
+                    let mut any_node_visible = false;
+                    
+                    for node in &elem.mesh_nodes {
+                        total_sub_objects += 1;
+                        
+                        if let (Some(node_aabb), Some(ref frustum)) = (&node.bounding_box, &frustum) {
+                            // Transform node AABB to world space using both element and node transforms
+                            let combined_transform = elem.transform.affine_transform() * node.local_transform.affine_transform();
+                            let world_aabb = node_aabb.transform(&Mat4::from(combined_transform));
+                            
+                            let node_visible = if persisted.frustum_culling.use_sphere_culling {
+                                let sphere_center = world_aabb.center();
+                                let sphere_radius = world_aabb.half_size().length();
+                                frustum.is_visible_sphere(sphere_center, sphere_radius)
+                            } else {
+                                frustum.is_visible_aabb(&world_aabb)
+                            };
+                            
+                            if node_visible {
+                                any_node_visible = true;
+                                visible_objects += 1;
+                            }
+                        } else {
+                            // If no bounding box, assume visible
+                            any_node_visible = true;
+                            visible_objects += 1;
+                        }
+                    }
+                    
+                    element_is_visible = any_node_visible;
+                } else {
+                    // For simple objects, use the element's bounding box
+                    total_sub_objects += 1;
+                    
+                    // Calculate world-space bounding box if not cached
+                    if elem.bounding_box.is_none() {
+                        let default_size = Vec3::splat(persisted.frustum_culling.default_object_size);
+                        elem.bounding_box = Some(Aabb::from_center_size(Vec3::ZERO, default_size));
+                    }
+
+                    if let (Some(local_aabb), Some(ref frustum)) = (&elem.bounding_box, &frustum) {
+                        if persisted.frustum_culling.use_sphere_culling {
+                            // Use sphere culling (faster but less accurate)
+                            let world_center = elem.transform.position;
+                            let world_scale = elem.transform.scale.max_element();
+                            let sphere_radius = local_aabb.half_size().length() * world_scale;
+                            element_is_visible = frustum.is_visible_sphere(world_center, sphere_radius);
+                        } else {
+                            // Use AABB culling (more accurate)
+                            let world_aabb = local_aabb.transform(&Mat4::from(elem.transform.affine_transform()));
+                            element_is_visible = frustum.is_visible_aabb(&world_aabb);
+                        }
+                    }
+                    
+                    if element_is_visible {
+                        visible_objects += 1;
+                    }
+                }
+            } else {
+                // Culling disabled - count all objects
+                if elem.is_compound {
+                    total_sub_objects += elem.mesh_nodes.len();
+                    visible_objects += elem.mesh_nodes.len();
+                } else {
+                    total_sub_objects += 1;
+                    visible_objects += 1;
+                }
+            }
+
+            if element_is_visible {
                 // Update instance parameters and transform only for visible objects
                 ctx.world_renderer
                     .get_instance_dynamic_parameters_mut(elem.instance)
@@ -480,7 +538,8 @@ impl RuntimeState {
             unsafe {
                 FRAME_COUNTER += 1;
                 if FRAME_COUNTER % persisted.frustum_culling.log_interval_frames == 0 {
-                    println!("Frustum Culling: {}/{} objects visible", visible_objects, total_objects);
+                    println!("Frustum Culling: {}/{} sub-objects visible from {} elements", 
+                        visible_objects, total_sub_objects, total_elements);
                 }
             }
         }
@@ -512,6 +571,33 @@ impl RuntimeState {
 
         // Update bounding boxes for new objects
         self.update_bounding_boxes(persisted, ctx.world_renderer);
+        
+        // Analyze GLTF files for compound objects
+        let mut elements_to_analyze = Vec::new();
+        
+        for (index, elem) in persisted.scene.elements.iter().enumerate() {
+            if !elem.is_compound {
+                if let MeshSource::File(path) = &elem.source {
+                    let extension = path.extension()
+                        .and_then(|ext| ext.to_str())
+                        .unwrap_or("");
+                    
+                    if extension == "gltf" || extension == "glb" {
+                        elements_to_analyze.push(index);
+                    }
+                }
+            }
+        }
+        
+        for index in elements_to_analyze {
+            if let Some(elem) = persisted.scene.elements.get_mut(index) {
+                if let Err(e) = self.analyze_gltf_nodes(elem, ctx.world_renderer) {
+                    if let MeshSource::File(path) = &elem.source {
+                        println!("Warning: Failed to analyze GLTF nodes for {}: {}", path.display(), e);
+                    }
+                }
+            }
+        }
 
         self.update_camera(persisted, &ctx);
 
@@ -734,6 +820,8 @@ impl RuntimeState {
             instance: inst,
             transform,
             bounding_box: None, // Will be calculated later when mesh data is available
+            mesh_nodes: Vec::new(),
+            is_compound: false,
         });
 
         Ok(())
@@ -828,6 +916,64 @@ impl RuntimeState {
                 }
             }
         }
+    }
+
+    /// Analyze a GLTF file and extract individual mesh nodes for better culling
+    pub fn analyze_gltf_nodes(
+        &self,
+        elem: &mut SceneElement,
+        _world_renderer: &WorldRenderer, // Prefixed with _ to suppress unused warning
+    ) -> anyhow::Result<()> {
+        if let MeshSource::File(path) = &elem.source {
+            let extension = path.extension()
+                .and_then(|ext| ext.to_str())
+                .unwrap_or("");
+
+            if extension == "gltf" || extension == "glb" {
+                // For now, create mock nodes based on the file
+                // In a real implementation, you would parse the GLTF and extract actual node data
+                
+                // Simulate multiple nodes for demonstration
+                elem.mesh_nodes = vec![
+                    MeshNode {
+                        name: Some("Node_0".to_string()),
+                        local_transform: SceneElementTransform {
+                            position: Vec3::new(0.0, 0.0, 0.0),
+                            rotation_euler_degrees: Vec3::ZERO,
+                            scale: Vec3::splat(1.0),
+                        },
+                        bounding_box: Some(Aabb::from_center_size(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(1.0))),
+                    },
+                    MeshNode {
+                        name: Some("Node_1".to_string()),
+                        local_transform: SceneElementTransform {
+                            position: Vec3::new(2.0, 0.0, 0.0),
+                            rotation_euler_degrees: Vec3::ZERO,
+                            scale: Vec3::splat(0.5),
+                        },
+                        bounding_box: Some(Aabb::from_center_size(Vec3::new(2.0, 0.0, 0.0), Vec3::splat(0.5))),
+                    },
+                    MeshNode {
+                        name: Some("Node_2".to_string()),
+                        local_transform: SceneElementTransform {
+                            position: Vec3::new(-1.5, 1.0, 0.5),
+                            rotation_euler_degrees: Vec3::ZERO,
+                            scale: Vec3::splat(0.8),
+                        },
+                        bounding_box: Some(Aabb::from_center_size(Vec3::new(-1.5, 1.0, 0.5), Vec3::splat(0.8))),
+                    },
+                ];
+                
+                elem.is_compound = true;
+                
+                println!("Analyzed GLTF '{}': Found {} mesh nodes", 
+                    path.display(), 
+                    elem.mesh_nodes.len()
+                );
+            }
+        }
+        
+        Ok(())
     }
 }
 

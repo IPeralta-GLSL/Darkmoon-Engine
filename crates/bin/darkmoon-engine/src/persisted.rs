@@ -254,7 +254,7 @@ impl Default for ExposureState {
 
 impl ShouldResetPathTracer for ExposureState {}
 
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct SceneElementTransform {
     pub position: Vec3,
     pub rotation_euler_degrees: Vec3,
@@ -298,6 +298,12 @@ pub struct SceneElement {
     
     #[serde(skip)]
     pub bounding_box: Option<Aabb>,
+    
+    // For GLTF files with multiple nodes/meshes
+    pub mesh_nodes: Vec<MeshNode>,
+    
+    // Indicates if this element represents a single mesh or a collection
+    pub is_compound: bool,
 }
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -334,5 +340,22 @@ impl ShouldResetPathTracer for PersistedState {
             || self.light.should_reset_path_tracer(&other.light)
             || self.movement.should_reset_path_tracer(&other.movement)
             || self.scene.should_reset_path_tracer(&other.scene)
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct MeshNode {
+    pub name: Option<String>,
+    pub local_transform: SceneElementTransform,
+    pub bounding_box: Option<Aabb>,
+}
+
+impl Default for MeshNode {
+    fn default() -> Self {
+        Self {
+            name: None,
+            local_transform: SceneElementTransform::IDENTITY,
+            bounding_box: None,
+        }
     }
 }

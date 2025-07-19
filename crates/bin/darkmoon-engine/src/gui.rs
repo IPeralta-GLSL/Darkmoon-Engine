@@ -298,10 +298,18 @@ impl RuntimeState {
 
                     // Display culling statistics
                     ui.text(im_str!("Culling Stats:"));
-                    ui.text(format!(
-                        "Total objects: {}",
-                        persisted.scene.elements.len()
-                    ));
+                    
+                    let total_elements = persisted.scene.elements.len();
+                    let total_nodes: usize = persisted.scene.elements.iter()
+                        .map(|elem| if elem.is_compound { elem.mesh_nodes.len().max(1) } else { 1 })
+                        .sum();
+                    let compound_elements = persisted.scene.elements.iter()
+                        .filter(|elem| elem.is_compound)
+                        .count();
+                        
+                    ui.text(format!("Scene elements: {}", total_elements));
+                    ui.text(format!("Total mesh nodes: {}", total_nodes));
+                    ui.text(format!("GLTF compound objects: {}", compound_elements));
                     
                     if persisted.frustum_culling.enabled {
                         ui.text_colored([0.0, 1.0, 0.0, 1.0], im_str!("Status: Enabled"));

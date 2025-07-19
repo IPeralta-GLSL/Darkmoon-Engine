@@ -1,7 +1,7 @@
 (
     camera: (
-        position: (1.8487452, -0.04259363, 3.5971603),
-        rotation: (0.046603218, 0.23741247, -0.011403751, 0.9702234),
+        position: (5.7216268, -1.1093117, -0.5846797),
+        rotation: (-0.1206047, 0.55111605, 0.080890335, 0.82169485),
         vertical_fov: 62,
     ),
     light: (
@@ -40,12 +40,51 @@
     scene: (
         elements: [
             (
-                source: File("/home/iperalta/Documents/GitHub/kajiya/assets/meshes/cornell_box/scene.gltf"),
+                source: File("/home/iperalta/Documents/GitHub/kajiya/assets/meshes/flying_world_-_battle_of_the_trash_god/scene.gltf"),
                 transform: (
-                    position: (0, -1, 0),
+                    position: (11, -3, -0.75),
                     rotation_euler_degrees: (0, 0, 0),
-                    scale: (2, 2, 2),
+                    scale: (0.001875, 0.001875, 0.001875),
                 ),
+                mesh_nodes: [
+                    (
+                        name: Some("Node_0"),
+                        local_transform: (
+                            position: (0, 0, 0),
+                            rotation_euler_degrees: (0, 0, 0),
+                            scale: (1, 1, 1),
+                        ),
+                        bounding_box: Some((
+                            min: (-0.5, -0.5, -0.5),
+                            max: (0.5, 0.5, 0.5),
+                        )),
+                    ),
+                    (
+                        name: Some("Node_1"),
+                        local_transform: (
+                            position: (2, 0, 0),
+                            rotation_euler_degrees: (0, 0, 0),
+                            scale: (0.5, 0.5, 0.5),
+                        ),
+                        bounding_box: Some((
+                            min: (1.75, -0.25, -0.25),
+                            max: (2.25, 0.25, 0.25),
+                        )),
+                    ),
+                    (
+                        name: Some("Node_2"),
+                        local_transform: (
+                            position: (-1.5, 1, 0.5),
+                            rotation_euler_degrees: (0, 0, 0),
+                            scale: (0.8, 0.8, 0.8),
+                        ),
+                        bounding_box: Some((
+                            min: (-1.9, 0.6, 0.099999994),
+                            max: (-1.1, 1.4, 0.9),
+                        )),
+                    ),
+                ],
+                is_compound: true,
             ),
         ],
         ibl: None,
@@ -54,7 +93,7 @@
         enabled: true,
         debug_logging: false,
         log_interval_frames: 120,
-        default_object_size: 10,
+        default_object_size: 2,
         use_sphere_culling: false,
     ),
 )
