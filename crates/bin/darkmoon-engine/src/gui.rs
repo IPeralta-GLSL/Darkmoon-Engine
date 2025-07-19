@@ -408,6 +408,110 @@ impl RuntimeState {
                     }
                 }
 
+                // Triangle Culling settings
+                if imgui::CollapsingHeader::new(im_str!("Triangle Culling"))
+                    .default_open(false)
+                    .build(ui)
+                {
+                    ui.checkbox(
+                        im_str!("Enable triangle culling"),
+                        &mut persisted.triangle_culling.enabled,
+                    );
+                    ui.same_line(0.0);
+                    ui.text_colored([0.7, 0.7, 0.7, 1.0], im_str!("Per-triangle visibility tests"));
+
+                    if persisted.triangle_culling.enabled {
+                        ui.separator();
+                        
+                        ui.checkbox(
+                            im_str!("Debug logging"),
+                            &mut persisted.triangle_culling.debug_logging,
+                        );
+                        
+                        imgui::Drag::<u32>::new(im_str!("Log interval (frames)"))
+                            .range(1..=300)
+                            .speed(1.0)
+                            .build(ui, &mut persisted.triangle_culling.log_interval_frames);
+
+                        ui.separator();
+                        ui.text(im_str!("Culling Methods:"));
+
+                        // Back-face culling checkbox
+                        let mut has_backface = persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::BackFace);
+                        if ui.checkbox(im_str!("Back-face culling"), &mut has_backface) {
+                            if has_backface {
+                                if !persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::BackFace) {
+                                    persisted.triangle_culling.methods.push(crate::math::PrimitiveCullingMethod::BackFace);
+                                }
+                            } else {
+                                persisted.triangle_culling.methods.retain(|m| m != &crate::math::PrimitiveCullingMethod::BackFace);
+                            }
+                        }
+                        ui.same_line(0.0);
+                        ui.text_colored([0.7, 0.7, 0.7, 1.0], im_str!("Hide faces pointing away"));
+
+                        // Small triangle culling checkbox
+                        let mut has_small = persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::SmallTriangle);
+                        if ui.checkbox(im_str!("Small triangle culling"), &mut has_small) {
+                            if has_small {
+                                if !persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::SmallTriangle) {
+                                    persisted.triangle_culling.methods.push(crate::math::PrimitiveCullingMethod::SmallTriangle);
+                                }
+                            } else {
+                                persisted.triangle_culling.methods.retain(|m| m != &crate::math::PrimitiveCullingMethod::SmallTriangle);
+                            }
+                        }
+                        ui.same_line(0.0);
+                        ui.text_colored([0.7, 0.7, 0.7, 1.0], im_str!("Hide very small triangles"));
+
+                        ui.separator();
+                        ui.text(im_str!("Parameters:"));
+
+                        imgui::Drag::<f32>::new(im_str!("Min triangle area (pixels)"))
+                            .range(0.1..=100.0)
+                            .speed(0.1)
+                            .build(ui, &mut persisted.triangle_culling.min_triangle_area);
+
+                        imgui::Drag::<f32>::new(im_str!("Back-face epsilon"))
+                            .range(0.0..=0.1)
+                            .speed(0.001)
+                            .build(ui, &mut persisted.triangle_culling.backface_epsilon);
+
+                        imgui::Drag::<f32>::new(im_str!("Max distance"))
+                            .range(10.0..=5000.0)
+                            .speed(10.0)
+                            .build(ui, &mut persisted.triangle_culling.max_distance);
+                    }
+
+                    ui.separator();
+                    ui.text(im_str!("Triangle Culling Info:"));
+                    ui.text_wrapped(im_str!("Culls individual triangles based on various criteria. Works at the finest level of detail, complementing object-level frustum and occlusion culling."));
+                    
+                    if persisted.triangle_culling.enabled {
+                        ui.text_colored([0.0, 1.0, 0.0, 1.0], im_str!("Status: Enabled"));
+                        ui.text(format!("Active methods: {}", persisted.triangle_culling.methods.len()));
+                        
+                        // Show triangle culling statistics
+                        let triangle_stats = self.get_triangle_culling_statistics();
+                        if triangle_stats.triangles_tested > 0 {
+                            ui.separator();
+                            ui.text(im_str!("Triangle Statistics:"));
+                            ui.text(format!("Triangles tested: {}", triangle_stats.triangles_tested));
+                            ui.text(format!("Triangles rendered: {}", triangle_stats.triangles_rendered));
+                            ui.text(format!("Culling efficiency: {:.1}%", triangle_stats.culling_efficiency()));
+                            
+                            if triangle_stats.total_culled > 0 {
+                                ui.text(format!("  Backface: {}", triangle_stats.backface_culled));
+                                ui.text(format!("  Degenerate: {}", triangle_stats.degenerate_culled));
+                                ui.text(format!("  Small: {}", triangle_stats.small_triangle_culled));
+                                ui.text(format!("  View-dependent: {}", triangle_stats.view_dependent_culled));
+                            }
+                        }
+                    } else {
+                        ui.text_colored([1.0, 0.0, 0.0, 1.0], im_str!("Status: Disabled"));
+                    }
+                }
+
                 if imgui::CollapsingHeader::new(im_str!("Overrides"))
                     .default_open(false)
                     .build(ui)

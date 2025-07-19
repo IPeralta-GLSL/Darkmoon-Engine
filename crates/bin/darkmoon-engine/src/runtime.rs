@@ -17,7 +17,7 @@ use crate::{
     scene::SceneDesc,
     sequence::{CameraPlaybackSequence, MemOption, SequenceValue},
     PersistedState,
-    math::{Aabb, Frustum, OcclusionCuller},
+    math::{Aabb, Frustum, OcclusionCuller, TriangleCuller},
     culling::CullingMethod,
 };
 
@@ -55,6 +55,7 @@ pub struct RuntimeState {
 
     known_meshes: HashMap<PathBuf, MeshHandle>,
     occlusion_culler: OcclusionCuller,
+    triangle_culler: TriangleCuller,
 }
 
 enum SequencePlaybackState {
@@ -116,6 +117,7 @@ impl RuntimeState {
 
             known_meshes: Default::default(),
             occlusion_culler: OcclusionCuller::new(persisted.occlusion_culling.clone()),
+            triangle_culler: TriangleCuller::new(persisted.triangle_culling.clone()),
         };
 
         // Load meshes that the persisted scene was referring to
@@ -422,9 +424,13 @@ impl RuntimeState {
         let total_elements = persisted.scene.elements.len();
         let frustum_culling_enabled = persisted.frustum_culling.enabled;
         let occlusion_culling_enabled = persisted.occlusion_culling.enabled;
+        let triangle_culling_enabled = persisted.triangle_culling.enabled;
 
         // Update occlusion culler config if changed
         self.occlusion_culler.update_config(persisted.occlusion_culling.clone());
+        
+        // Update triangle culler config if changed
+        self.triangle_culler.update_config(persisted.triangle_culling.clone());
 
         // Only create frustum if culling is enabled
         let (frustum, view_proj_matrix) = if frustum_culling_enabled || occlusion_culling_enabled {
@@ -593,6 +599,11 @@ impl RuntimeState {
                     .emissive_multiplier = persisted.light.emissive_multiplier * emissive_toggle_mult;
                 ctx.world_renderer
                     .set_instance_transform(elem.instance, elem.transform.affine_transform());
+                
+                // Perform triangle culling analysis for visible objects
+                if triangle_culling_enabled {
+                    self.analyze_triangle_culling(elem, &persisted.triangle_culling, view_proj_matrix.as_ref());
+                }
             } else {
                 // Apply culling based on the chosen method
                 match persisted.frustum_culling.culling_method {
@@ -655,6 +666,11 @@ impl RuntimeState {
                     }
                 }
             }
+        }
+        
+        // Update triangle culling frame counter and potentially log statistics
+        if triangle_culling_enabled {
+            self.triangle_culler.end_frame();
         }
     }
 
@@ -1264,6 +1280,71 @@ impl RuntimeState {
         }
 
         Ok(())
+    }
+
+    /// Analyze triangle culling for a given scene element
+    fn analyze_triangle_culling(
+        &mut self,
+        elem: &SceneElement,
+        _config: &crate::math::triangle_culling::TriangleCullingConfig,
+        view_proj_matrix: Option<&Mat4>,
+    ) {
+        // For now, we'll generate some example triangles for demonstration
+        // In a real implementation, you would extract actual triangles from the mesh data
+        let example_triangles = self.generate_example_triangles_for_element(elem);
+        
+        for triangle in example_triangles {
+            self.triangle_culler.test_triangle(&triangle, view_proj_matrix);
+        }
+    }
+    
+    /// Generate example triangles for demonstration purposes
+    /// In a real implementation, this would extract actual triangles from mesh data
+    fn generate_example_triangles_for_element(&self, elem: &SceneElement) -> Vec<crate::math::Triangle> {
+        let mut triangles = Vec::new();
+        
+        // Transform to world space using element transform
+        let transform = Mat4::from(elem.transform.affine_transform());
+        
+        if elem.is_compound {
+            // For compound objects, generate triangles for each mesh node
+            for node in &elem.mesh_nodes {
+                if let Some(aabb) = &node.bounding_box {
+                    let combined_transform = transform * Mat4::from(node.local_transform.affine_transform());
+                    triangles.extend(self.triangles_from_aabb(aabb, &combined_transform));
+                }
+            }
+        } else {
+            // For simple objects, generate triangles from the element's bounding box
+            if let Some(aabb) = &elem.bounding_box {
+                triangles.extend(self.triangles_from_aabb(aabb, &transform));
+            }
+        }
+        
+        triangles
+    }
+    
+    /// Generate example triangles from an AABB (for demonstration)
+    /// In a real implementation, this would use actual mesh geometry
+    fn triangles_from_aabb(&self, aabb: &crate::math::Aabb, transform: &Mat4) -> Vec<crate::math::Triangle> {
+        let min_point = aabb.min;
+        let max_point = aabb.max;
+        
+        // Create two triangles for one face of the AABB as an example
+        let v0 = transform.transform_point3(Vec3::new(min_point.x, min_point.y, min_point.z));
+        let v1 = transform.transform_point3(Vec3::new(max_point.x, min_point.y, min_point.z));
+        let v2 = transform.transform_point3(Vec3::new(max_point.x, max_point.y, min_point.z));
+        let v3 = transform.transform_point3(Vec3::new(min_point.x, max_point.y, min_point.z));
+        
+        vec![
+            crate::math::Triangle::new([v0, v1, v2]),
+            crate::math::Triangle::new([v0, v2, v3]),
+        ]
+    }
+
+    /// Get triangle culling statistics
+    pub fn get_triangle_culling_statistics(&self) -> &crate::math::triangle_culling::TriangleCullingStats {
+        self.triangle_culler.get_statistics()
     }
 
     //...existing code...

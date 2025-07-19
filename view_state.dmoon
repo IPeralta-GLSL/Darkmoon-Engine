@@ -1,7 +1,7 @@
 (
     camera: (
-        position: (3.8744037, -1.3750523, -0.3947968),
-        rotation: (-0.12015793, 0.30325088, 0.038578447, 0.94451725),
+        position: (3.0273767, -2.3104517, -1.3771397),
+        rotation: (-0.01528446, 0.38746232, 0.0064249956, 0.9217364),
         vertical_fov: 62,
     ),
     light: (
@@ -62490,7 +62490,23 @@
         depth_buffer_resolution: 128,
         depth_bias: 0.01,
         sample_count: 4,
-        debug_visualize: true,
+        debug_visualize: false,
         max_test_distance: 1000,
+    ),
+    triangle_culling: (
+        enabled: true,
+        methods: [
+            BackFace,
+            ZeroArea,
+            SmallTriangle,
+        ],
+        backface_epsilon: 0.001,
+        min_triangle_area: 4,
+        min_world_area: 0.0001,
+        degenerate_epsilon: 0.0001,
+        max_distance: 1000,
+        angle_threshold: 0.1,
+        debug_logging: true,
+        log_interval_frames: 60,
     ),
 )
