@@ -733,6 +733,7 @@ dependencies = [
  "imgui",
  "kajiya",
  "kajiya-asset-pipe",
+ "kajiya-backend",
  "kajiya-simple",
  "log",
  "ron",

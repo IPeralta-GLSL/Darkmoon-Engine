@@ -1,6 +1,7 @@
 use imgui::im_str;
 use kajiya::RenderOverrideFlags;
 use kajiya_simple::*;
+use kajiya_backend::shader_progress::GLOBAL_SHADER_PROGRESS;  // Enhanced import
 
 use crate::{
     runtime::{RuntimeState, MAX_FPS_LIMIT},
@@ -9,15 +10,30 @@ use crate::{
 
 impl RuntimeState {
     pub fn do_gui(&mut self, persisted: &mut PersistedState, ctx: &mut FrameContext) {
+        // Update shader progress tracking each frame 
+        // Pipeline compilation counts are automatically reported by the pipeline cache
+        kajiya_backend::shader_progress::update_pipeline_compilation_frame(0);
+
         if self.keyboard.was_just_pressed(self.keymap_config.ui.toggle) {
             self.show_gui = !self.show_gui;
         }
 
         ctx.world_renderer.rg_debug_hook = self.locked_rg_debug_hook.clone();
 
-        if self.show_gui {
+        // Always show GUI when shaders are compiling, even if normally hidden
+        let is_compiling = Self::is_shader_compilation_active() || kajiya_backend::shader_progress::is_compilation_or_heavy_work_active();
+        let should_show_gui = self.show_gui || is_compiling;
+
+        if should_show_gui || is_compiling {
             ctx.imgui.take().unwrap().frame(|ui| {
-                // --- Menubar superior ---
+                // --- Shader Compilation Progress Popup (always first, even if GUI is hidden) ---
+                if is_compiling {
+                    Self::show_shader_compilation_popup(ui);
+                }
+
+                // Only show regular GUI if user has it enabled
+                if self.show_gui {
+                    // --- Menubar superior ---
                 if let Some(bar) = ui.begin_main_menu_bar() {
                     if let Some(file_menu) = ui.begin_menu(im_str!("File"), true) {
                         // Opciones de File
@@ -733,7 +749,237 @@ impl RuntimeState {
                         }
                     }
                 }
+                } // Close the if self.show_gui block
             });
+        }
+    }
+
+    /// Check if shader compilation is currently active
+    fn is_shader_compilation_active() -> bool {
+        if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+            if let Ok(progress) = tracker.get_progress().lock() {
+                // Show if there are registered shaders and they're not complete
+                // OR if pipeline compilation is explicitly active
+                let has_active_compilation = (progress.total_shaders > 0 && !progress.is_complete) 
+                    || tracker.is_pipeline_compilation_active();
+                    
+                if has_active_compilation {
+                    log::debug!("Shader compilation active: total={}, completed={}, is_complete={}, pipeline_active={}", 
+                        progress.total_shaders, progress.completed_shaders, progress.is_complete, tracker.is_pipeline_compilation_active());
+                }
+                    
+                return has_active_compilation;
+            }
+        }
+        false
+    }
+
+    /// For testing - simulate shader compilation on startup (only if no real compilation is happening)
+    pub fn simulate_shader_compilation() {
+        // Enable simulation in debug builds to help with testing
+        const ENABLE_SIMULATION: bool = true; // Always enabled for now
+
+        if !ENABLE_SIMULATION {
+            return;
+        }
+
+        std::thread::spawn(move || {
+            // Wait a bit to ensure the GUI loop is ready
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+            
+            // Check if real compilation is already happening
+            if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+                if let Ok(progress) = tracker.get_progress().lock() {
+                    if progress.total_shaders > 0 && !progress.is_simulation_mode {
+                        log::info!("Real shader compilation already in progress, skipping simulation");
+                        return;
+                    }
+                }
+            }
+            
+            log::info!("Starting shader compilation simulation");
+            
+            if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+                tracker.set_simulation_mode(true);
+                
+                // Simulate some typical shaders being compiled (more realistic number)
+                let test_shaders = vec![
+                    "/shaders/rt/gbuffer.rchit.hlsl",
+                    "/shaders/rt/reference_path_trace.rgen.hlsl", 
+                    "/shaders/light_gbuffer.hlsl",
+                    "/shaders/sky/comp_cube.hlsl",
+                    "/shaders/dof/coc.hlsl",
+                    "/shaders/taa/reproject_history.hlsl",
+                    "/shaders/tonemap/luminance_histogram.hlsl",
+                    "/shaders/post/post_combine.hlsl",
+                    "/shaders/rt/shadow.rchit.hlsl",
+                    "/shaders/atmosphere/comp_transmittance.hlsl",
+                    "rust::gbuffer_cs",
+                    "rust::ssgi_cs",
+                    "rust::reflection_cs",
+                    "rust::temporal_upsampling_cs",
+                    "rust::bloom_downsample_cs",
+                ];
+
+                for shader in &test_shaders {
+                    tracker.register_shader(shader);
+                }
+            }
+            
+            // Wait a bit more to show the initial state
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            
+            // Simulate compilation progress with more realistic timing
+            let test_shaders = vec![
+                "/shaders/rt/gbuffer.rchit.hlsl",
+                "/shaders/rt/reference_path_trace.rgen.hlsl", 
+                "/shaders/light_gbuffer.hlsl",
+                "/shaders/sky/comp_cube.hlsl",
+                "/shaders/dof/coc.hlsl",
+                "/shaders/taa/reproject_history.hlsl",
+                "/shaders/tonemap/luminance_histogram.hlsl",
+                "/shaders/post/post_combine.hlsl",
+                "/shaders/rt/shadow.rchit.hlsl",
+                "/shaders/atmosphere/comp_transmittance.hlsl",
+                "rust::gbuffer_cs",
+                "rust::ssgi_cs",
+                "rust::reflection_cs",
+                "rust::temporal_upsampling_cs",
+                "rust::bloom_downsample_cs",
+            ];
+
+            for (i, shader) in test_shaders.iter().enumerate() {
+                if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+                    tracker.start_compiling_shader(shader);
+                }
+                
+                // Simulate more realistic compilation time (1-3 seconds per shader)
+                let compilation_time = 1000 + (i * 200) as u64 + ((i * 123) % 1000) as u64;
+                std::thread::sleep(std::time::Duration::from_millis(compilation_time));
+                
+                if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+                    tracker.finish_compiling_shader(shader, true);
+                }
+            }
+            
+            // When simulation finishes, keep it alive until real compilation starts or we're sure none is needed
+            log::info!("Shader compilation simulation complete. Keeping window active until real compilation starts...");
+            
+            // Keep the simulation "complete" state visible but stay active for longer
+            let mut monitoring_iterations = 0;
+            let max_monitoring_time = 30; // 30 * 500ms = 15 seconds
+            
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                monitoring_iterations += 1;
+                
+                let should_exit = if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+                    if let Ok(progress) = tracker.get_progress().lock() {
+                        // If real compilation has taken over, stop monitoring
+                        if !progress.is_simulation_mode {
+                            log::info!("Real shader compilation detected, ending simulation monitoring");
+                            true
+                        } else if monitoring_iterations >= max_monitoring_time {
+                            log::info!("Simulation monitoring timeout, assuming no real compilation needed");
+                            // Mark as truly complete after timeout
+                            drop(progress);
+                            if let Ok(mut tracker_mut) = GLOBAL_SHADER_PROGRESS.lock() {
+                                tracker_mut.set_pipeline_compilation_active(false);
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        true
+                    }
+                } else {
+                    true
+                };
+                
+                if should_exit {
+                    break;
+                }
+            }
+        });
+    }
+
+    /// Show shader compilation progress popup
+    fn show_shader_compilation_popup(ui: &imgui::Ui) {
+        if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+            if let Ok(progress) = tracker.get_progress().lock() {
+                // Show popup if:
+                // 1. There are shaders registered AND compilation is not complete
+                // 2. OR pipeline compilation is explicitly active (even if no shaders registered yet)
+                let should_show = (progress.total_shaders > 0 && !progress.is_complete) 
+                    || (progress.total_shaders == 0 && tracker.is_pipeline_compilation_active());
+                
+                if should_show {
+                    // Create a centered window
+                    let [display_width, display_height] = ui.io().display_size;
+                    let window_width = 500.0;
+                    let window_height = 200.0;
+                    
+                    // Use window builder pattern for imgui 0.7
+                    imgui::Window::new(im_str!("Compiling Shaders"))
+                        .position(
+                            [
+                                (display_width - window_width) * 0.5,
+                                (display_height - window_height) * 0.5,
+                            ],
+                            imgui::Condition::Always,
+                        )
+                        .size([window_width, window_height], imgui::Condition::Always)
+                        .resizable(false)
+                        .movable(false)
+                        .collapsible(false)
+                        .build(ui, || {
+                            ui.text("Initializing rendering engine...");
+                            ui.spacing();
+
+                            // Progress bar
+                            let progress_fraction = if progress.total_shaders > 0 {
+                                progress.progress_percentage() / 100.0
+                            } else {
+                                0.0 // Indeterminate progress when no shaders registered yet
+                            };
+                            
+                            imgui::ProgressBar::new(progress_fraction)
+                                .size([450.0, 20.0])
+                                .overlay_text(&im_str!("{:.1}%", progress.progress_percentage()))
+                                .build(ui);
+
+                            ui.spacing();
+
+                            // Status text
+                            let status = if progress.total_shaders > 0 {
+                                progress.status_text()
+                            } else if tracker.is_pipeline_compilation_active() {
+                                "Preparing shader compilation...".to_string()
+                            } else {
+                                "Waiting for shader compilation to start...".to_string()
+                            };
+                            ui.text(status);
+
+                            // Additional info about compilation type
+                            if progress.is_simulation_mode {
+                                ui.spacing();
+                                ui.text_colored([0.8, 0.8, 0.3, 1.0], "Note: This is a simulation. Real compilation may follow.");
+                            } else if !progress.is_simulation_mode && progress.total_shaders > 0 {
+                                ui.spacing();
+                                ui.text_colored([0.3, 0.8, 0.3, 1.0], "Real shader compilation in progress...");
+                            }
+
+                            if !progress.failed_shaders.is_empty() {
+                                ui.spacing();
+                                ui.text_colored([1.0, 0.3, 0.3, 1.0], "Some shaders failed to compile:");
+                                for failed in &progress.failed_shaders {
+                                    ui.text_colored([1.0, 0.6, 0.6, 1.0], failed);
+                                }
+                            }
+                        });
+                }
+            }
         }
     }
 }

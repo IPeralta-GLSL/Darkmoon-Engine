@@ -6,6 +6,7 @@ pub mod file;
 pub mod pipeline_cache;
 pub mod rust_shader_compiler;
 pub mod shader_compiler;
+pub mod shader_progress; // New: shader compilation progress tracking
 pub mod transient_resource_cache;
 pub mod vulkan;
 

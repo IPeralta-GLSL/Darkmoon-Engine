@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 kajiya = { path = "../../lib/kajiya" }
+kajiya-backend = { path = "../../lib/kajiya-backend" }  # New: for shader progress tracking
 kajiya-simple = { path = "../../lib/kajiya-simple", features = ["dear-imgui", "winit_serde"] }
 kajiya-asset-pipe = { path = "../../lib/kajiya-asset-pipe"}
 

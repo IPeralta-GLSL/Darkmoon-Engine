@@ -107,6 +107,9 @@ fn main() -> anyhow::Result<()> {
 
     let mut state = AppState::new(persisted, &opt)?;
 
+    // Simulate shader compilation for testing the progress window
+    runtime::RuntimeState::simulate_shader_compilation();
+
     if let Some(scene) = opt.scene.as_ref() {
         state.load_scene(scene)?;
     } else if let Some(mesh) = opt.mesh.as_ref() {

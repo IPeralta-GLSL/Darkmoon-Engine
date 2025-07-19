@@ -1,6 +1,7 @@
 use crate::{
     rust_shader_compiler::CompileRustShader,
     shader_compiler::{CompileShader, CompiledShader},
+    shader_progress::{GLOBAL_SHADER_PROGRESS},
     vulkan::{
         ray_tracing::{create_ray_tracing_pipeline, RayTracingPipeline, RayTracingPipelineDesc},
         shader::*,
@@ -40,8 +41,29 @@ impl LazyWorker for CompilePipelineShaders {
     type Output = anyhow::Result<CompiledPipelineShaders>;
 
     async fn run(self, ctx: RunContext) -> Self::Output {
+        // Register shaders for progress tracking
+        if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+            for desc in &self.shader_descs {
+                let shader_name = match &desc.source {
+                    ShaderSource::Hlsl { path } => path.to_string_lossy().to_string(),
+                    ShaderSource::Rust { entry } => format!("rust::{}", entry),
+                };
+                tracker.register_shader(&shader_name);
+            }
+        }
+
         let shaders = futures::future::try_join_all(self.shader_descs.iter().map(|desc| {
-            match &desc.source {
+            let shader_name = match &desc.source {
+                ShaderSource::Hlsl { path } => path.to_string_lossy().to_string(),
+                ShaderSource::Rust { entry } => format!("rust::{}", entry),
+            };
+
+            // Start compiling notification
+            if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+                tracker.start_compiling_shader(&shader_name);
+            }
+
+            let compile_future = match &desc.source {
                 ShaderSource::Rust { entry } => CompileRustShader {
                     entry: entry.clone(),
                 }
@@ -59,6 +81,18 @@ impl LazyWorker for CompilePipelineShaders {
                 }
                 .into_lazy()
                 .eval(&ctx),
+            };
+
+            // Wrap the future to track completion
+            async move {
+                let result = compile_future.await;
+                
+                // Finish compiling notification
+                if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+                    tracker.finish_compiling_shader(&shader_name, result.is_ok());
+                }
+
+                result
             }
         }))
         .await?;
@@ -253,6 +287,24 @@ impl PipelineCache {
         &mut self,
         device: &Arc<crate::vulkan::device::Device>,
     ) -> anyhow::Result<()> {
+        // Check if there are any pipelines that need compilation
+        let compute_needs_compilation = self.compute_entries.iter().any(|(_, entry)| entry.pipeline.is_none());
+        let raster_needs_compilation = self.raster_entries.iter().any(|(_, entry)| entry.pipeline.is_none());
+        let rt_needs_compilation = self.rt_entries.iter().any(|(_, entry)| entry.pipeline.is_none());
+        
+        let needs_compilation = compute_needs_compilation || raster_needs_compilation || rt_needs_compilation;
+
+        if needs_compilation {
+            log::info!("Starting real shader compilation: compute={}, raster={}, rt={}", 
+                compute_needs_compilation, raster_needs_compilation, rt_needs_compilation);
+            crate::shader_progress::start_real_compilation();
+            
+            // Mark pipeline compilation as active only when we actually need to compile
+            if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
+                tracker.set_pipeline_compilation_active(true);
+            }
+        }
+
         // Prepare build tasks for compute
         let compute = self.compute_entries.iter().filter_map(|(&handle, entry)| {
             entry.pipeline.is_none().then(|| {
@@ -288,8 +340,11 @@ impl PipelineCache {
 
         // Gather all the build tasks together
         let shader_tasks: Vec<_> = compute.chain(raster).chain(rt).collect();
+        let num_tasks = shader_tasks.len();
 
         if !shader_tasks.is_empty() {
+            log::info!("Compiling {} pipeline(s)...", shader_tasks.len());
+            
             // Compile all the things
             let compiled: Vec<CompileTaskOutput> =
                 smol::block_on(futures::future::try_join_all(shader_tasks))?;
@@ -377,6 +432,15 @@ impl PipelineCache {
                 }
             }
         }
+
+        // Only mark pipeline compilation as finished if we actually had compilation work to do
+        // Instead of immediately finishing, report the number of pipelines compiled this frame
+        if needs_compilation && num_tasks > 0 {
+            log::info!("Compiled {} pipeline(s) this frame", num_tasks);
+        }
+        
+        // Update the shader progress tracker with this frame's activity
+        crate::shader_progress::update_pipeline_compilation_frame(num_tasks as u32);
 
         Ok(())
     }
