@@ -6,7 +6,7 @@
 
 <div align="center">
 
-# 💡 kajiya
+# 💡 cargo run --bin darkmoon-engine --release -- --scene assets/scenes/cornell_box.dmoon --width 1920 --height 1080
 
 **Experimental real-time global illumination renderer made with Rust and Vulkan**
 
