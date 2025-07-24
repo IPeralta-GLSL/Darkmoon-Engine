@@ -32,6 +32,24 @@ use std::{
 
 pub const MAX_FPS_LIMIT: u32 = 256;
 
+pub struct UiWindowsState {
+    pub show_asset_browser: bool,
+    pub show_hierarchy: bool,
+    pub show_debug: bool,
+    pub asset_browser: Option<crate::asset_browser::AssetBrowser>,
+}
+
+impl Default for UiWindowsState {
+    fn default() -> Self {
+        Self {
+            show_asset_browser: true,
+            show_hierarchy: true,
+            show_debug: true,
+            asset_browser: None,
+        }
+    }
+}
+
 pub struct RuntimeState {
     pub camera: CameraRig,
     pub mouse: MouseState,
@@ -57,6 +75,7 @@ pub struct RuntimeState {
     occlusion_culler: OcclusionCuller,
     triangle_culler: TriangleCuller,
     pub streaming_integration: crate::streaming_integration::StreamingIntegration,
+    pub ui_windows: UiWindowsState,
 }
 
 enum SequencePlaybackState {
@@ -120,6 +139,7 @@ impl RuntimeState {
             occlusion_culler: OcclusionCuller::new(persisted.occlusion_culling.clone()),
             triangle_culler: TriangleCuller::new(persisted.triangle_culling.clone()),
             streaming_integration: crate::streaming_integration::StreamingIntegration::new(),
+            ui_windows: UiWindowsState::default(),
         };
 
         // Load meshes that the persisted scene was referring to

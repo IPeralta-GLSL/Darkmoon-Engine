@@ -9,14 +9,13 @@ use crate::{
     PersistedState,
 };
 
+use crate::runtime::UiWindowsState;
+
 impl RuntimeState {
     pub fn do_gui(&mut self, persisted: &mut PersistedState, ctx: &mut FrameContext) {
         // --- Asset Browser State ---
-        static mut ASSET_BROWSER: Option<AssetBrowser> = None;
-        unsafe {
-            if ASSET_BROWSER.is_none() {
-                ASSET_BROWSER = Some(AssetBrowser::new());
-            }
+        if self.ui_windows.asset_browser.is_none() {
+            self.ui_windows.asset_browser = Some(AssetBrowser::new());
         }
         // Update shader progress tracking each frame 
         // Pipeline compilation counts are automatically reported by the pipeline cache
@@ -35,10 +34,38 @@ impl RuntimeState {
         if should_show_gui || is_compiling {
             ctx.imgui.take().unwrap().frame(|ui| {
                 // --- Asset Browser Window ---
-                unsafe {
-                    if let Some(asset_browser) = ASSET_BROWSER.as_mut() {
+                if let Some(asset_browser) = self.ui_windows.asset_browser.as_mut() {
+                    if self.ui_windows.show_asset_browser && asset_browser.open {
                         asset_browser.show(ui);
                     }
+                }
+                // --- Hierarchy Window ---
+                if self.ui_windows.show_hierarchy {
+                    imgui::Window::new(im_str!("Hierarchy")).opened(&mut self.ui_windows.show_hierarchy)
+                        .size([350.0, 500.0], imgui::Condition::FirstUseEver)
+                        .build(ui, || {
+                            for (idx, elem) in persisted.scene.elements.iter().enumerate() {
+                                let label = if let Some(name) = elem.mesh_nodes.get(0).and_then(|n| n.name.as_ref()) {
+                                    im_str!("{}##{}", name, idx)
+                                } else {
+                                    im_str!("{:?}##{}", elem.source, idx)
+                                };
+                                if elem.is_compound && !elem.mesh_nodes.is_empty() {
+                                    imgui::TreeNode::new(&label).build(ui, || {
+                                        for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
+                                            let node_label = if let Some(n) = &node.name {
+                                                im_str!("{}##{}-{}", n, idx, nidx)
+                                            } else {
+                                                im_str!("Node {}##{}-{}", nidx, idx, nidx)
+                                            };
+                                            ui.bullet_text(&node_label);
+                                        }
+                                    });
+                                } else {
+                                    ui.bullet_text(&label);
+                                }
+                            }
+                        });
                 }
                 // --- Shader Compilation Progress Popup (always first, even if GUI is hidden) ---
                 if is_compiling {
@@ -54,7 +81,19 @@ impl RuntimeState {
                         file_menu.end(&ui);
                     }
                     if let Some(window_menu) = ui.begin_menu(im_str!("Window"), true) {
-                        // Opciones de Window
+                        let show_assets = self.ui_windows.asset_browser.as_ref().map_or(false, |a| a.open && self.ui_windows.show_asset_browser);
+                        if imgui::MenuItem::new(im_str!("Assets Browser")).selected(show_assets).build(ui) {
+                            if let Some(asset_browser) = self.ui_windows.asset_browser.as_mut() {
+                                asset_browser.open = !asset_browser.open;
+                                self.ui_windows.show_asset_browser = asset_browser.open;
+                            }
+                        }
+                        if imgui::MenuItem::new(im_str!("Hierarchy")).selected(self.ui_windows.show_hierarchy).build(ui) {
+                            self.ui_windows.show_hierarchy = !self.ui_windows.show_hierarchy;
+                        }
+                        if imgui::MenuItem::new(im_str!("Debug")).selected(self.ui_windows.show_debug).build(ui) {
+                            self.ui_windows.show_debug = !self.ui_windows.show_debug;
+                        }
                         window_menu.end(&ui);
                     }
                     if let Some(view_menu) = ui.begin_menu(im_str!("View"), true) {
@@ -215,6 +254,34 @@ impl RuntimeState {
                         }
                     } else {
                         ui.text(im_str!("Drag a sphere-mapped .hdr/.exr to load as IBL"));
+                    }
+
+                    // --- Hierarchy ---
+                    if imgui::CollapsingHeader::new(im_str!("Hierarchy"))
+                        .default_open(true)
+                        .build(ui)
+                    {
+                        for (idx, elem) in persisted.scene.elements.iter().enumerate() {
+                            let label = if let Some(name) = elem.mesh_nodes.get(0).and_then(|n| n.name.as_ref()) {
+                                im_str!("{}##{}", name, idx)
+                            } else {
+                                im_str!("{:?}##{}", elem.source, idx)
+                            };
+                            if elem.is_compound && !elem.mesh_nodes.is_empty() {
+                                imgui::TreeNode::new(&label).build(ui, || {
+                                    for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
+                                        let node_label = if let Some(n) = &node.name {
+                                            im_str!("{}##{}-{}", n, idx, nidx)
+                                        } else {
+                                            im_str!("Node {}##{}-{}", nidx, idx, nidx)
+                                        };
+                                        ui.bullet_text(&node_label);
+                                    }
+                                });
+                            } else {
+                                ui.bullet_text(&label);
+                            }
+                        }
                     }
 
                     let mut element_to_remove = None;
@@ -674,44 +741,46 @@ impl RuntimeState {
                     }
                 }
 
-                if imgui::CollapsingHeader::new(im_str!("Debug"))
-                    .default_open(false)
-                    .build(ui)
-                {
-                    if ui.radio_button_bool(
-                        im_str!("Scene geometry"),
-                        ctx.world_renderer.debug_mode == RenderDebugMode::None,
-                    ) {
-                        ctx.world_renderer.debug_mode = RenderDebugMode::None;
+                if self.ui_windows.show_debug {
+                    if imgui::CollapsingHeader::new(im_str!("Debug"))
+                        .default_open(false)
+                        .build(ui)
+                    {
+                        if ui.radio_button_bool(
+                            im_str!("Scene geometry"),
+                            ctx.world_renderer.debug_mode == RenderDebugMode::None,
+                        ) {
+                            ctx.world_renderer.debug_mode = RenderDebugMode::None;
+                        }
+
+                        /*if ui.radio_button_bool(
+                            im_str!("World radiance cache"),
+                            ctx.world_renderer.debug_mode == RenderDebugMode::WorldRadianceCache,
+                        ) {
+                            ctx.world_renderer.debug_mode = RenderDebugMode::WorldRadianceCache;
+                        }*/
+
+                        imgui::ComboBox::new(im_str!("Shading")).build_simple_string(
+                            ui,
+                            &mut ctx.world_renderer.debug_shading_mode,
+                            &[
+                                im_str!("Default"),
+                                im_str!("No base color"),
+                                im_str!("Diffuse GI"),
+                                im_str!("Reflections"),
+                                im_str!("RTX OFF"),
+                                im_str!("Irradiance cache"),
+                            ],
+                        );
+
+                        imgui::Drag::<u32>::new(im_str!("Max FPS"))
+                            .range(1..=MAX_FPS_LIMIT)
+                            .build(ui, &mut self.max_fps);
+
+                        ui.checkbox(im_str!("Allow pass overlap"), unsafe {
+                            &mut kajiya::rg::RG_ALLOW_PASS_OVERLAP
+                        });
                     }
-
-                    /*if ui.radio_button_bool(
-                        im_str!("World radiance cache"),
-                        ctx.world_renderer.debug_mode == RenderDebugMode::WorldRadianceCache,
-                    ) {
-                        ctx.world_renderer.debug_mode = RenderDebugMode::WorldRadianceCache;
-                    }*/
-
-                    imgui::ComboBox::new(im_str!("Shading")).build_simple_string(
-                        ui,
-                        &mut ctx.world_renderer.debug_shading_mode,
-                        &[
-                            im_str!("Default"),
-                            im_str!("No base color"),
-                            im_str!("Diffuse GI"),
-                            im_str!("Reflections"),
-                            im_str!("RTX OFF"),
-                            im_str!("Irradiance cache"),
-                        ],
-                    );
-
-                    imgui::Drag::<u32>::new(im_str!("Max FPS"))
-                        .range(1..=MAX_FPS_LIMIT)
-                        .build(ui, &mut self.max_fps);
-
-                    ui.checkbox(im_str!("Allow pass overlap"), unsafe {
-                        &mut kajiya::rg::RG_ALLOW_PASS_OVERLAP
-                    });
                 }
 
                 if imgui::CollapsingHeader::new(im_str!("GPU passes"))

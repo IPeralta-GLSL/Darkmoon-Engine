@@ -1,7 +1,7 @@
 (
     camera: (
-        position: (4.430024, -1.5391386, -0.08376161),
-        rotation: (-0.15598975, 0.46585065, 0.08381893, 0.86696297),
+        position: (0.44353685, -2.5717995, 1.4463841),
+        rotation: (-0.09387997, 0.80530185, 0.13259502, 0.5701702),
         vertical_fov: 62,
     ),
     light: (
@@ -9,7 +9,7 @@
         enable_emissive: true,
         sun: (
             controller: (
-                towards_sun: (-0.00089788786, 0.9999904, -0.004285354),
+                towards_sun: (0, 1, 0),
             ),
             size_multiplier: 1,
         ),
