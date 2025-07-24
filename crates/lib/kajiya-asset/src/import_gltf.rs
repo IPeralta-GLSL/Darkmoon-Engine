@@ -5,6 +5,7 @@ use gltf::{buffer, image, Document, Error, Gltf, Result};
 use std::{fs, io, path::Path};
 
 use crate::image::ImageSource;
+use crate::vfs_utils::to_vfs_path;
 
 type BufferBytes = Bytes;
 
@@ -131,11 +132,24 @@ pub fn import_image_data(
                         let bytes = base64::decode(base64).map_err(Error::Base64)?;
                         images.push(ImageSource::Memory(Bytes::from(bytes)));
                     }
-                    Scheme::Data(None, ..) => return Err(Error::ExternalReferenceInSliceImport),
+                    Scheme::Data(_none, ..) => return Err(Error::ExternalReferenceInSliceImport),
                     Scheme::Unsupported => return Err(Error::UnsupportedScheme),
-                    Scheme::File(path) => images.push(ImageSource::File(path.into())),
+                    Scheme::File(path) => {
+                        // Intenta convertir a VFS path si es posible
+                        let abs = Path::new(path);
+                        if let Some(vfs_path) = to_vfs_path(abs) {
+                            images.push(ImageSource::File(vfs_path));
+                        } else {
+                            images.push(ImageSource::File(abs.to_path_buf()));
+                        }
+                    }
                     Scheme::Relative if base.is_some() => {
-                        images.push(ImageSource::File(base.unwrap().join(uri)))
+                        let abs = base.unwrap().join(uri);
+                        if let Some(vfs_path) = to_vfs_path(&abs) {
+                            images.push(ImageSource::File(vfs_path));
+                        } else {
+                            images.push(ImageSource::File(abs));
+                        }
                     }
                     Scheme::Relative => return Err(Error::UnsupportedScheme),
                 }
