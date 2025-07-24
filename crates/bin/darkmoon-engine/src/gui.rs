@@ -1,4 +1,5 @@
 use imgui::im_str;
+use crate::asset_browser::AssetBrowser;
 use kajiya::RenderOverrideFlags;
 use kajiya_simple::*;
 use kajiya_backend::shader_progress::GLOBAL_SHADER_PROGRESS;  // Enhanced import
@@ -10,6 +11,13 @@ use crate::{
 
 impl RuntimeState {
     pub fn do_gui(&mut self, persisted: &mut PersistedState, ctx: &mut FrameContext) {
+        // --- Asset Browser State ---
+        static mut ASSET_BROWSER: Option<AssetBrowser> = None;
+        unsafe {
+            if ASSET_BROWSER.is_none() {
+                ASSET_BROWSER = Some(AssetBrowser::new());
+            }
+        }
         // Update shader progress tracking each frame 
         // Pipeline compilation counts are automatically reported by the pipeline cache
         kajiya_backend::shader_progress::update_pipeline_compilation_frame(0);
@@ -26,6 +34,12 @@ impl RuntimeState {
 
         if should_show_gui || is_compiling {
             ctx.imgui.take().unwrap().frame(|ui| {
+                // --- Asset Browser Window ---
+                unsafe {
+                    if let Some(asset_browser) = ASSET_BROWSER.as_mut() {
+                        asset_browser.show(ui);
+                    }
+                }
                 // --- Shader Compilation Progress Popup (always first, even if GUI is hidden) ---
                 if is_compiling {
                     Self::show_shader_compilation_popup(ui);

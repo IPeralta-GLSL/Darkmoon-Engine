@@ -1,4 +1,5 @@
 mod gui;
+mod asset_browser;
 mod culling;
 mod keymap;
 mod math;
