@@ -46,9 +46,11 @@ impl RuntimeState {
                     imgui::Window::new(im_str!("Outliner")).opened(&mut self.ui_windows.show_hierarchy)
                         .size([350.0, 500.0], imgui::Condition::FirstUseEver)
                         .build(ui, || {
-                            let sun_dir = persisted.light.sun.controller.towards_sun();
-                            ui.text(im_str!("Sun direction: ({:.3}, {:.3}, {:.3})", sun_dir.x, sun_dir.y, sun_dir.z));
-
+                            // Sun as a selectable item
+                            let sun_selected = unsafe { SELECTED_ELEMENT == Some(usize::MAX) };
+                            if imgui::Selectable::new(im_str!("Sun Direction")).selected(sun_selected).build(ui) {
+                                unsafe { SELECTED_ELEMENT = Some(usize::MAX); }
+                            }
                             for (idx, elem) in persisted.scene.elements.iter().enumerate() {
                                 let label = if let Some(name) = elem.mesh_nodes.get(0).and_then(|n| n.name.as_ref()) {
                                     im_str!("{}##{}", name, idx)
@@ -78,15 +80,43 @@ impl RuntimeState {
                 // Attributes window for selected object
                 let selected_idx = unsafe { SELECTED_ELEMENT };
                 if let Some(idx) = selected_idx {
-                    if let Some(elem) = persisted.scene.elements.get(idx) {
+                    if idx == usize::MAX {
+                        // Sun attributes
+                        imgui::Window::new(im_str!("Attributes")).size([350.0, 200.0], imgui::Condition::FirstUseEver)
+                            .build(ui, || {
+                                let controller = &mut persisted.light.sun.controller;
+                                let mut dir = controller.towards_sun();
+                                ui.text(im_str!("Sun Direction (editable):"));
+                                let mut changed = false;
+                                changed |= imgui::Drag::<f32>::new(im_str!("X")).range(-1.0..=1.0).speed(0.01).build(ui, &mut dir.x);
+                                changed |= imgui::Drag::<f32>::new(im_str!("Y")).range(-1.0..=1.0).speed(0.01).build(ui, &mut dir.y);
+                                changed |= imgui::Drag::<f32>::new(im_str!("Z")).range(-1.0..=1.0).speed(0.01).build(ui, &mut dir.z);
+                                if changed {
+                                    if dir.length() > 1e-4 {
+                                        controller.set_towards_sun(dir.normalize());
+                                    }
+                                }
+                                ui.separator();
+                                ui.text(im_str!("Current: ({:.3}, {:.3}, {:.3})", dir.x, dir.y, dir.z));
+                            });
+                    } else if let Some(elem) = persisted.scene.elements.get_mut(idx) {
                         imgui::Window::new(im_str!("Attributes")).size([350.0, 300.0], imgui::Condition::FirstUseEver)
                             .build(ui, || {
                                 ui.text(im_str!("Source: {:?}", elem.source));
                                 ui.text(im_str!("Compound: {}", elem.is_compound));
                                 ui.separator();
-                                ui.text(im_str!("Position: ({:.3}, {:.3}, {:.3})", elem.transform.position.x, elem.transform.position.y, elem.transform.position.z));
-                                ui.text(im_str!("Rotation: ({:.3}, {:.3}, {:.3})", elem.transform.rotation_euler_degrees.x, elem.transform.rotation_euler_degrees.y, elem.transform.rotation_euler_degrees.z));
-                                ui.text(im_str!("Scale: ({:.3}, {:.3}, {:.3})", elem.transform.scale.x, elem.transform.scale.y, elem.transform.scale.z));
+                                let pos = &mut elem.transform.position;
+                                let rot = &mut elem.transform.rotation_euler_degrees;
+                                let scale = &mut elem.transform.scale;
+                                imgui::Drag::<f32>::new(im_str!("Position X")).speed(0.01).build(ui, &mut pos.x);
+                                imgui::Drag::<f32>::new(im_str!("Position Y")).speed(0.01).build(ui, &mut pos.y);
+                                imgui::Drag::<f32>::new(im_str!("Position Z")).speed(0.01).build(ui, &mut pos.z);
+                                imgui::Drag::<f32>::new(im_str!("Rotation X")).speed(0.1).build(ui, &mut rot.x);
+                                imgui::Drag::<f32>::new(im_str!("Rotation Y")).speed(0.1).build(ui, &mut rot.y);
+                                imgui::Drag::<f32>::new(im_str!("Rotation Z")).speed(0.1).build(ui, &mut rot.z);
+                                imgui::Drag::<f32>::new(im_str!("Scale X")).speed(0.01).build(ui, &mut scale.x);
+                                imgui::Drag::<f32>::new(im_str!("Scale Y")).speed(0.01).build(ui, &mut scale.y);
+                                imgui::Drag::<f32>::new(im_str!("Scale Z")).speed(0.01).build(ui, &mut scale.z);
                                 if !elem.mesh_nodes.is_empty() {
                                     ui.separator();
                                     ui.text(im_str!("Mesh nodes:"));
