@@ -40,18 +40,27 @@ impl RuntimeState {
                     }
                 }
                 // --- Hierarchy Window ---
+                // Outliner window (was Hierarchy)
+                static mut SELECTED_ELEMENT: Option<usize> = None;
                 if self.ui_windows.show_hierarchy {
-                    imgui::Window::new(im_str!("Hierarchy")).opened(&mut self.ui_windows.show_hierarchy)
+                    imgui::Window::new(im_str!("Outliner")).opened(&mut self.ui_windows.show_hierarchy)
                         .size([350.0, 500.0], imgui::Condition::FirstUseEver)
                         .build(ui, || {
+                            let sun_dir = persisted.light.sun.controller.towards_sun();
+                            ui.text(im_str!("Sun direction: ({:.3}, {:.3}, {:.3})", sun_dir.x, sun_dir.y, sun_dir.z));
+
                             for (idx, elem) in persisted.scene.elements.iter().enumerate() {
                                 let label = if let Some(name) = elem.mesh_nodes.get(0).and_then(|n| n.name.as_ref()) {
                                     im_str!("{}##{}", name, idx)
                                 } else {
                                     im_str!("{:?}##{}", elem.source, idx)
                                 };
+                                let is_selected = unsafe { SELECTED_ELEMENT == Some(idx) };
+                                if imgui::Selectable::new(&label).selected(is_selected).build(ui) {
+                                    unsafe { SELECTED_ELEMENT = Some(idx); }
+                                }
                                 if elem.is_compound && !elem.mesh_nodes.is_empty() {
-                                    imgui::TreeNode::new(&label).build(ui, || {
+                                    imgui::TreeNode::new(&im_str!("Nodes##{}", idx)).build(ui, || {
                                         for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
                                             let node_label = if let Some(n) = &node.name {
                                                 im_str!("{}##{}-{}", n, idx, nidx)
@@ -61,11 +70,36 @@ impl RuntimeState {
                                             ui.bullet_text(&node_label);
                                         }
                                     });
-                                } else {
-                                    ui.bullet_text(&label);
                                 }
                             }
                         });
+                }
+
+                // Attributes window for selected object
+                let selected_idx = unsafe { SELECTED_ELEMENT };
+                if let Some(idx) = selected_idx {
+                    if let Some(elem) = persisted.scene.elements.get(idx) {
+                        imgui::Window::new(im_str!("Attributes")).size([350.0, 300.0], imgui::Condition::FirstUseEver)
+                            .build(ui, || {
+                                ui.text(im_str!("Source: {:?}", elem.source));
+                                ui.text(im_str!("Compound: {}", elem.is_compound));
+                                ui.separator();
+                                ui.text(im_str!("Position: ({:.3}, {:.3}, {:.3})", elem.transform.position.x, elem.transform.position.y, elem.transform.position.z));
+                                ui.text(im_str!("Rotation: ({:.3}, {:.3}, {:.3})", elem.transform.rotation_euler_degrees.x, elem.transform.rotation_euler_degrees.y, elem.transform.rotation_euler_degrees.z));
+                                ui.text(im_str!("Scale: ({:.3}, {:.3}, {:.3})", elem.transform.scale.x, elem.transform.scale.y, elem.transform.scale.z));
+                                if !elem.mesh_nodes.is_empty() {
+                                    ui.separator();
+                                    ui.text(im_str!("Mesh nodes:"));
+                                    for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
+                                        if let Some(name) = &node.name {
+                                            ui.bullet_text(&im_str!("{}", name));
+                                        } else {
+                                            ui.bullet_text(&im_str!("Node {}", nidx));
+                                        }
+                                    }
+                                }
+                            });
+                    }
                 }
                 // --- Shader Compilation Progress Popup (always first, even if GUI is hidden) ---
                 if is_compiling {
