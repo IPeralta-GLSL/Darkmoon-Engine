@@ -9,7 +9,7 @@ mod persisted;
 mod runtime;
 mod scene;
 mod sequence;
-mod streaming_integration;  // New: resource streaming integration
+mod streaming_integration;
 
 use std::{
     fs::File,
