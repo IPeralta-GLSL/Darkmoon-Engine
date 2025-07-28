@@ -2,8 +2,8 @@
     instances: [
         (
             position: (0, -0.001, 0),
-            mesh: "/meshes/car/car.glb",
-            scale: (1.00, 1.00, 1.00),
+            mesh: "/meshes/car/2023_lamborghini_urus_performante.glb",
+            scale: (10.00, 10.00, 10.00),
         ),
         (
             position: (0, 0, 0),
