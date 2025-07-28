@@ -1,0 +1,13 @@
+(
+    instances: [
+        (
+            position: (0, -0.001, 0),
+            mesh: "/meshes/girl/city_survival_girl.glb",
+            scale: (0.001, 0.001, 0.001),
+        ),
+        (
+            position: (0, 0, 0),
+            mesh: "/meshes/floor/scene.gltf",
+        ),
+    ]
+)
