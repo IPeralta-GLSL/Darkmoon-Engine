@@ -8,6 +8,8 @@
 
 # 💡 WAYLAND_DISPLAY= XDG_SESSION_TYPE=x11 cargo run --bin darkmoon-engine --release -- --scene assets/scenes/cornell_box.dmoon
 # sudo pacman -S base-devel vulkan-icd-loader vulkan-tools vulkan-validation-layers util-linux
+# sudo pacman -S directx-shader-compiler
+# sudo pacman -S amdvlk
 **Experimental real-time global illumination renderer made with Rust and Vulkan**
 
 [![Embark](https://img.shields.io/badge/embark-open%20source-blueviolet.svg)](https://embark.dev)
