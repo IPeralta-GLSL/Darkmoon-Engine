@@ -47,17 +47,24 @@ VertexPacked pack_vertex(Vertex v) {
 
 static const uint MESH_MATERIAL_FLAG_EMISSIVE_USED_AS_LIGHT = 1;
 
+// Map indices for the maps array
+static const uint MAP_INDEX_NORMAL = 0;
+static const uint MAP_INDEX_SPEC = 1;
+static const uint MAP_INDEX_ALBEDO = 2;
+static const uint MAP_INDEX_EMISSIVE = 3;
+
 struct MeshMaterial {
     float base_color_mult[4];
-    uint normal_map;
-    uint spec_map;
-    uint albedo_map;
-    uint emissive_map;
+    uint maps[4];  // Changed to match Rust structure
     float roughness_mult;
     float metalness_factor;
     float emissive[3];
     uint flags;
     float map_transforms[6 * 4];
+    float transparency;    // 0.0 = opaque, 1.0 = fully transparent
+    float ior;            // Index of refraction for translucent materials
+    float transmission;   // Transmission factor (0.0-1.0)
+    float _padding;       // For alignment
 };
 
 float2 transform_material_uv(MeshMaterial mat, float2 uv, uint map_idx) {
@@ -65,6 +72,14 @@ float2 transform_material_uv(MeshMaterial mat, float2 uv, uint map_idx) {
     float2x2 rot_scl = float2x2(mat.map_transforms[xo+0], mat.map_transforms[xo+1], mat.map_transforms[xo+2], mat.map_transforms[xo+3]);
     float2 offset = float2(mat.map_transforms[xo+4], mat.map_transforms[xo+5]);
     return mul(rot_scl, uv) + offset;
+}
+
+bool is_material_translucent(MeshMaterial mat) {
+    return mat.transparency > 0.01 || mat.transmission > 0.01;
+}
+
+float get_material_alpha(MeshMaterial mat) {
+    return 1.0 - mat.transparency;
 }
 
 

@@ -40,10 +40,15 @@ PsOut main(PsIn ps) {
     Mesh mesh = meshes[push_constants.mesh_index];
     MeshMaterial material = vertices.Load<MeshMaterial>(mesh.mat_data_offset + ps.material_id * sizeof(MeshMaterial));
 
+    // Skip translucent materials in opaque pass
+    if (is_material_translucent(material)) {
+        discard;
+    }
+
     const float lod_bias = -0.5;
 
     float2 albedo_uv = transform_material_uv(material, ps.uv, 0);
-    Texture2D albedo_tex = bindless_textures[NonUniformResourceIndex(material.albedo_map)];
+    Texture2D albedo_tex = bindless_textures[NonUniformResourceIndex(material.maps[MAP_INDEX_ALBEDO])];
     float4 albedo_texel = albedo_tex.SampleBias(sampler_llr, albedo_uv, lod_bias);
     if (albedo_texel.a < 0.5) {
         discard;
@@ -52,7 +57,7 @@ PsOut main(PsIn ps) {
     float3 albedo = albedo_texel.xyz * float4(material.base_color_mult).xyz * ps.color.xyz;
 
     float2 spec_uv = transform_material_uv(material, ps.uv, 2);
-    Texture2D spec_tex = bindless_textures[NonUniformResourceIndex(material.spec_map)];
+    Texture2D spec_tex = bindless_textures[NonUniformResourceIndex(material.maps[MAP_INDEX_SPEC])];
     const float4 metalness_roughness = spec_tex.SampleBias(sampler_llr, spec_uv, lod_bias);
     float perceptual_roughness = material.roughness_mult * metalness_roughness.x;
     float roughness = clamp(perceptual_roughness_to_roughness(perceptual_roughness), 1e-4, 1.0);
@@ -73,7 +78,7 @@ PsOut main(PsIn ps) {
 
         [branch]
         if (!frame_constants.render_overrides.has_flag(RenderOverrideFlags::NO_NORMAL_MAPS)) {
-            Texture2D normal_tex = bindless_textures[NonUniformResourceIndex(material.normal_map)];
+            Texture2D normal_tex = bindless_textures[NonUniformResourceIndex(material.maps[MAP_INDEX_NORMAL])];
 
 #if 1
             float3 ts_normal = float3(normal_tex.SampleBias(sampler_llr, ps.uv, lod_bias).xy * 2.0 - 1.0, 0);
@@ -114,7 +119,7 @@ PsOut main(PsIn ps) {
     }
 
     float2 emissive_uv = transform_material_uv(material, ps.uv, 3);
-    Texture2D emissive_tex = bindless_textures[NonUniformResourceIndex(material.emissive_map)];
+    Texture2D emissive_tex = bindless_textures[NonUniformResourceIndex(material.maps[MAP_INDEX_EMISSIVE])];
     float3 emissive = 1.0.xxx
         * emissive_tex.SampleBias(sampler_llr, emissive_uv, lod_bias).rgb
         * float3(material.emissive)

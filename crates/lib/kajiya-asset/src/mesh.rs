@@ -80,6 +80,10 @@ pub struct MeshMaterial {
     pub emissive: [f32; 3],
     pub flags: u32,
     pub map_transforms: [[f32; 6]; 4],
+    pub transparency: f32,  // 0.0 = opaque, 1.0 = fully transparent
+    pub ior: f32,           // Index of refraction for translucent materials
+    pub transmission: f32,  // Transmission factor (0.0-1.0)
+    pub _padding: f32,      // For alignment
 }
 
 #[derive(Clone, Default)]
@@ -237,6 +241,13 @@ fn load_gltf_material(
     let roughness_mult = mat.pbr_metallic_roughness().roughness_factor();
     let metalness_factor = mat.pbr_metallic_roughness().metallic_factor();
 
+    // Extract transparency from alpha channel
+    let transparency = 1.0 - base_color_mult[3];
+    
+    // Default values for new translucency properties
+    let ior = 1.5; // Glass-like default
+    let transmission = if transparency > 0.01 { 1.0 } else { 0.0 }; // Full transmission for transparent materials
+
     //mata.normal_texture().and_then(|tex| tex.transform())
 
     (
@@ -249,6 +260,10 @@ fn load_gltf_material(
             emissive,
             flags: 0,
             map_transforms,
+            transparency,
+            ior,
+            transmission,
+            _padding: 0.0,
         },
     )
 }

@@ -143,6 +143,7 @@ pub struct WorldRenderer {
     device: Arc<device::Device>,
 
     pub(super) raster_simple_render_pass: Arc<RenderPass>,
+    pub(super) translucent_render_pass: Arc<RenderPass>,
     pub(super) bindless_descriptor_set: vk::DescriptorSet,
     pub(super) meshes: Vec<UploadedTriMesh>,
 
@@ -364,6 +365,21 @@ impl WorldRenderer {
             },
         );
 
+        // Render pass for translucent materials with forward rendering
+        let translucent_render_pass = create_render_pass(
+            &backend.device,
+            RenderPassDesc {
+                color_attachments: &[
+                    // Final color output with alpha blending - load existing content
+                    RenderPassAttachmentDesc::new(vk::Format::R16G16B16A16_SFLOAT),
+                ],
+                depth_attachment: Some(
+                    // Depth buffer read-only for translucent objects
+                    RenderPassAttachmentDesc::new(vk::Format::D32_SFLOAT).discard_output(),
+                ),
+            },
+        );
+
         let mesh_buffer = backend.device.create_buffer(
             BufferDesc::new_cpu_to_gpu(
                 MAX_GPU_MESHES * size_of::<GpuMesh>(),
@@ -446,6 +462,7 @@ impl WorldRenderer {
 
         Ok(Self {
             raster_simple_render_pass,
+            translucent_render_pass,
 
             reset_reference_accumulation: false,
             //cube_index_buffer: Arc::new(cube_index_buffer),

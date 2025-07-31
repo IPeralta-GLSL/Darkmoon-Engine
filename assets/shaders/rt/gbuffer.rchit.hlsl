@@ -96,7 +96,7 @@ void main(inout GbufferRayPayload payload: SV_RayPayload, in RayHitAttrib attrib
 
     float2 albedo_uv = transform_material_uv(material, uv, 0);
     const BindlessTextureWithLod albedo_tex =
-        compute_texture_lod(material.albedo_map, lod_triangle_constant, WorldRayDirection(), surf_normal_ws, cone_width);
+        compute_texture_lod(material.maps[MAP_INDEX_ALBEDO], lod_triangle_constant, WorldRayDirection(), surf_normal_ws, cone_width);
 
     float3 albedo =
         albedo_tex.tex.SampleLevel(sampler_llr, albedo_uv, albedo_tex.lod).xyz
@@ -105,7 +105,7 @@ void main(inout GbufferRayPayload payload: SV_RayPayload, in RayHitAttrib attrib
 
     float2 spec_uv = transform_material_uv(material, uv, 2);
     const BindlessTextureWithLod spec_tex =
-        compute_texture_lod(material.spec_map, lod_triangle_constant, WorldRayDirection(), surf_normal_ws, cone_width);
+        compute_texture_lod(material.maps[MAP_INDEX_SPEC], lod_triangle_constant, WorldRayDirection(), surf_normal_ws, cone_width);
     float4 metalness_roughness = spec_tex.tex.SampleLevel(sampler_llr, spec_uv, spec_tex.lod);
     float perceptual_roughness = material.roughness_mult * metalness_roughness.x;
     float roughness = clamp(perceptual_roughness_to_roughness(perceptual_roughness), 1e-4, 1.0);
@@ -150,7 +150,7 @@ void main(inout GbufferRayPayload payload: SV_RayPayload, in RayHitAttrib attrib
 
         float2 normal_uv = transform_material_uv(material, uv, 0);
         const BindlessTextureWithLod normal_tex =
-            compute_texture_lod(material.normal_map, lod_triangle_constant, WorldRayDirection(), surf_normal_ws, cone_width);
+            compute_texture_lod(material.maps[MAP_INDEX_NORMAL], lod_triangle_constant, WorldRayDirection(), surf_normal_ws, cone_width);
 
         float3 ts_normal = normal_tex.tex.SampleLevel(sampler_llr, normal_uv, normal_tex.lod).xyz * TODO;
 
@@ -168,7 +168,7 @@ void main(inout GbufferRayPayload payload: SV_RayPayload, in RayHitAttrib attrib
 
     float2 emissive_uv = transform_material_uv(material, uv, 3);
     const BindlessTextureWithLod emissive_tex =
-        compute_texture_lod(material.emissive_map, lod_triangle_constant, WorldRayDirection(), surf_normal_ws, cone_width);
+        compute_texture_lod(material.maps[MAP_INDEX_EMISSIVE], lod_triangle_constant, WorldRayDirection(), surf_normal_ws, cone_width);
 
     float3 emissive = 0;
 

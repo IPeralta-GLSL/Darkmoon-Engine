@@ -13,6 +13,7 @@ pub mod motion_blur;
 pub mod post;
 pub mod prefix_scan;
 pub mod raster_meshes;
+pub mod raster_translucent_meshes;
 pub mod reference;
 pub mod reprojection;
 pub mod rtdgi;

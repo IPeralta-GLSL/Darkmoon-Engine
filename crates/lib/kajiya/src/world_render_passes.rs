@@ -2,7 +2,8 @@ use crate::{
     frame_desc::WorldFrameDesc,
     renderers::{
         deferred::light_gbuffer, motion_blur::motion_blur, raster_meshes::*,
-        reference::reference_path_trace, shadows::trace_sun_shadow_mask, GbufferDepth,
+        raster_translucent_meshes::*, reference::reference_path_trace, 
+        shadows::trace_sun_shadow_mask, GbufferDepth,
     },
     world_renderer::{RenderDebugMode, WorldRenderer},
 };
@@ -232,6 +233,32 @@ impl WorldRenderer {
             self.debug_shading_mode,
             self.debug_show_wrc,
         );
+
+        // Render translucent materials with forward rendering
+        // Filter only translucent instances
+        let translucent_instances: Vec<_> = self.instances.iter()
+            .filter(|_inst| {
+                // TODO: Implement proper transparency detection
+                // For now, return false to skip all meshes
+                false
+            })
+            .cloned()
+            .collect();
+
+        if !translucent_instances.is_empty() {
+            raster_translucent_meshes(
+                rg,
+                self.translucent_render_pass.clone(),
+                &mut debug_out_tex,
+                &gbuffer_depth,
+                RasterTranslucentMeshesData {
+                    meshes: self.meshes.as_slice(),
+                    instances: &translucent_instances,
+                    vertex_buffer: self.vertex_buffer.lock().clone(),
+                    bindless_descriptor_set: self.bindless_descriptor_set,
+                },
+            );
+        }
 
         #[allow(unused_mut)]
         let mut anti_aliased = None;
