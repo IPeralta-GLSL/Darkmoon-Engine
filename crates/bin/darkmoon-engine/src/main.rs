@@ -93,6 +93,13 @@ impl AppState {
 const APP_STATE_CONFIG_FILE_PATH: &str = "view_state.dmoon";
 
 fn main() -> anyhow::Result<()> {
+    // Detectar si estamos bajo Wayland y forzar X11 si es necesario
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        // Forzar X11 para compatibilidad si no está ya configurado
+        std::env::set_var("WAYLAND_DISPLAY", "");
+        std::env::set_var("XDG_SESSION_TYPE", "x11");
+    }
+
     set_vfs_mount_point("/meshes", "assets/meshes");
 
     let opt = Opt::from_args();
