@@ -238,8 +238,10 @@ impl WorldRenderer {
         // Filter only translucent instances
         let translucent_instances: Vec<_> = self.instances.iter()
             .filter(|_inst| {
-                // TODO: Implement proper transparency detection
-                // For now, return false to skip all meshes
+                // DISABLED: Translucent rendering causes infinite compilation loops
+                // This is due to a bug in kajiya_backend::pipeline_cache where 
+                // pipelines are never marked as successfully compiled, causing
+                // the system to attempt recompilation every frame
                 false
             })
             .cloned()

@@ -12,7 +12,7 @@ use log::{debug, error, info, trace, warn};
 use std::{collections::HashMap, sync::Arc};
 use turbosloth::*;
 
-#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Clone, Copy, Hash, Eq, PartialEq, Debug)]
 pub struct ComputePipelineHandle(usize);
 
 struct ComputePipelineCacheEntry {
@@ -21,10 +21,10 @@ struct ComputePipelineCacheEntry {
     pipeline: Option<Arc<ComputePipeline>>,
 }
 
-#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Clone, Copy, Hash, Eq, PartialEq, Debug)]
 pub struct RasterPipelineHandle(usize);
 
-#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Clone, Copy, Hash, Eq, PartialEq, Debug)]
 pub struct RtPipelineHandle(usize);
 
 pub struct CompiledPipelineShaders {
@@ -349,6 +349,8 @@ impl PipelineCache {
             let compiled: Vec<CompileTaskOutput> =
                 smol::block_on(futures::future::try_join_all(shader_tasks))?;
 
+            log::info!("Successfully compiled {} pipelines, now creating Vulkan pipelines...", compiled.len());
+
             // Build pipelines from all compiled shaders
             for compiled in compiled {
                 match compiled {
@@ -364,6 +366,7 @@ impl PipelineCache {
                             &compiled.spirv,
                             &entry.desc,
                         )));
+                        log::debug!("Successfully created compute pipeline {:?}", handle);
                     }
                     CompileTaskOutput::Raster { handle, compiled } => {
                         let entry = self.raster_entries.get_mut(&handle).unwrap();
@@ -390,10 +393,16 @@ impl PipelineCache {
                             .collect::<Vec<_>>();
 
                         // TODO: defer and handle the error
-                        entry.pipeline = Some(Arc::new(
-                            create_raster_pipeline(device.as_ref(), &compiled_shaders, &entry.desc)
-                                .expect("create_raster_pipeline"),
-                        ));
+                        match create_raster_pipeline(device.as_ref(), &compiled_shaders, &entry.desc) {
+                            Ok(pipeline) => {
+                                entry.pipeline = Some(Arc::new(pipeline));
+                                log::debug!("Successfully created raster pipeline {:?}", handle);
+                            }
+                            Err(e) => {
+                                log::error!("Failed to create raster pipeline {:?}: {}", handle, e);
+                                return Err(e);
+                            }
+                        }
                     }
                     CompileTaskOutput::Rt { handle, compiled } => {
                         let entry = self.rt_entries.get_mut(&handle).unwrap();
