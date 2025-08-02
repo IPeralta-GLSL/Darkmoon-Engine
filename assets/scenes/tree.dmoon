@@ -1,0 +1,9 @@
+(
+    instances: [
+        (
+            position: (0, -0.001, 0),
+            mesh: "/meshes/car2/scene.gltf",
+            scale: (0.10, 0.10, 0.10),
+        ),
+    ]
+)
