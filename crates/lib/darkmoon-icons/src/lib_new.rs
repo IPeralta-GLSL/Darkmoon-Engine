@@ -8,12 +8,7 @@ pub mod font_awesome;
 pub mod font_awesome_brands;
 pub mod font_setup;
 
-// Re-export specific icons to avoid conflicts
-pub use font_awesome::{
-    ICON_FILE, ICON_FOLDER, ICON_FOLDER_OPEN, ICON_FILM, ICON_CUBE, 
-    ICON_IMAGE, ICON_BOLT, ICON_VOLUME_HIGH, ICON_CODE, ICON_GEAR,
-    FONT_ICON_FILE_NAME_FAS, FONT_ICON_FILE_NAME_FAR
-};
+pub use font_awesome::*;
 pub use font_awesome_brands::*;
 
 // ========== DARKMOON ENGINE ICON UTILITIES ==========
