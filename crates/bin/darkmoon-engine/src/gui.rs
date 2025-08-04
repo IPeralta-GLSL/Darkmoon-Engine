@@ -197,9 +197,31 @@ impl RuntimeState {
                         window_menu.end(&ui);
                     }
                     if let Some(view_menu) = ui.begin_menu(im_str!("View"), true) {
-                        let mut checked = ctx.world_renderer.is_ray_tracing_enabled();
-                        if ui.checkbox(im_str!("Ray tracing"), &mut checked) {
-                            ctx.world_renderer.set_ray_tracing_enabled(checked);
+                        if let Some(rendering_menu) = ui.begin_menu(im_str!("Rendering Type"), true) {
+                            // Rasterization mode (RTX OFF)
+                            let is_rasterization = !ctx.world_renderer.is_ray_tracing_enabled() && 
+                                                  ctx.world_renderer.render_mode == RenderMode::Standard;
+                            if imgui::MenuItem::new(im_str!("Rasterization")).selected(is_rasterization).build(ui) {
+                                ctx.world_renderer.set_ray_tracing_enabled(false);
+                                ctx.world_renderer.render_mode = RenderMode::Standard;
+                            }
+                            
+                            // Ray Tracing mode
+                            let is_ray_tracing = ctx.world_renderer.is_ray_tracing_enabled() && 
+                                                ctx.world_renderer.render_mode == RenderMode::Standard;
+                            if imgui::MenuItem::new(im_str!("Ray Tracing")).selected(is_ray_tracing).build(ui) {
+                                ctx.world_renderer.set_ray_tracing_enabled(true);
+                                ctx.world_renderer.render_mode = RenderMode::Standard;
+                            }
+                            
+                            // Path Tracing mode (Reference)
+                            let is_path_tracing = ctx.world_renderer.render_mode == RenderMode::Reference;
+                            if imgui::MenuItem::new(im_str!("Path Tracing")).selected(is_path_tracing).build(ui) {
+                                ctx.world_renderer.render_mode = RenderMode::Reference;
+                                ctx.world_renderer.reset_reference_accumulation = true;
+                            }
+                            
+                            rendering_menu.end(&ui);
                         }
                         view_menu.end(&ui);
                     }
