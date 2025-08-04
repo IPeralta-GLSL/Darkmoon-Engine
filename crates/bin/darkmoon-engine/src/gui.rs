@@ -1,5 +1,5 @@
 use imgui::im_str;
-use crate::asset_browser::AssetBrowser;
+use crate::asset_browser::{AssetBrowser, AssetAction};
 use kajiya::RenderOverrideFlags;
 use kajiya_simple::*;
 use kajiya_backend::shader_progress::GLOBAL_SHADER_PROGRESS;  // Enhanced import
@@ -8,8 +8,6 @@ use crate::{
     runtime::{RuntimeState, MAX_FPS_LIMIT},
     PersistedState,
 };
-
-use crate::runtime::UiWindowsState;
 
 impl RuntimeState {
     pub fn do_gui(&mut self, persisted: &mut PersistedState, ctx: &mut FrameContext) {
@@ -36,7 +34,25 @@ impl RuntimeState {
                 // --- Asset Browser Window ---
                 if let Some(asset_browser) = self.ui_windows.asset_browser.as_mut() {
                     if self.ui_windows.show_asset_browser && asset_browser.open {
-                        asset_browser.show(ui);
+                        let action = asset_browser.show(ui);
+                        // Handle asset browser actions
+                        match action {
+                            AssetAction::LoadScene(scene_path) => {
+                                // Convert PathBuf to string for the load_scene_from_path method
+                                if let Some(path_str) = scene_path.to_str() {
+                                    if let Err(err) = self.load_scene_from_path(persisted, ctx, path_str) {
+                                        log::error!("Failed to load scene from asset browser {}: {:#}", path_str, err);
+                                    } else {
+                                        log::info!("Successfully loaded scene from asset browser: {}", path_str);
+                                    }
+                                } else {
+                                    log::error!("Failed to convert scene path to string: {:?}", scene_path);
+                                }
+                            }
+                            AssetAction::None => {
+                                // No action taken
+                            }
+                        }
                     }
                 }
                 // --- Hierarchy Window ---
