@@ -2,6 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use imgui::{Ui, im_str, ImString};
 
+use darkmoon_icons::*;
+
 pub struct AssetBrowser {
     pub open: bool,
     pub current_dir: PathBuf,
@@ -47,7 +49,7 @@ impl AssetBrowser {
                 let file_name = ImString::from(file_name.to_string_lossy().to_string());
                 
                 if path.is_dir() {
-                    let folder_label = ImString::from(format!("📁 {}", file_name.to_str()));
+                    let folder_label = ImString::from(get_folder_icon_label(file_name.to_str(), false));
                     imgui::TreeNode::new(&folder_label)
                         .default_open(false)
                         .build(ui, || {
@@ -60,25 +62,25 @@ impl AssetBrowser {
                     
                     match extension {
                         "dmoon" => {
-                            let scene_label = ImString::from(format!("🎬 {}", file_name.to_str()));
+                            let scene_label = ImString::from(get_file_icon_label(extension, file_name.to_str()));
                             if imgui::Selectable::new(&scene_label).build(ui) {
                                 *action = AssetAction::LoadScene(path.clone());
                             }
                         }
                         "gltf" | "glb" => {
-                            let model_label = ImString::from(format!("🗿 {}", file_name.to_str()));
+                            let model_label = ImString::from(get_file_icon_label(extension, file_name.to_str()));
                             ui.bullet_text(&model_label);
                         }
                         "png" | "jpg" | "jpeg" | "tga" | "dds" | "hdr" | "exr" => {
-                            let image_label = ImString::from(format!("🖼️ {}", file_name.to_str()));
+                            let image_label = ImString::from(get_file_icon_label(extension, file_name.to_str()));
                             ui.bullet_text(&image_label);
                         }
                         "hlsl" | "glsl" | "wgsl" => {
-                            let shader_label = ImString::from(format!("⚡ {}", file_name.to_str()));
+                            let shader_label = ImString::from(get_file_icon_label(extension, file_name.to_str()));
                             ui.bullet_text(&shader_label);
                         }
                         "wav" | "mp3" | "ogg" => {
-                            let audio_label = ImString::from(format!("🔊 {}", file_name.to_str()));
+                            let audio_label = ImString::from(get_file_icon_label(extension, file_name.to_str()));
                             ui.bullet_text(&audio_label);
                         }
                         _ => {

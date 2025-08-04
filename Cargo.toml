@@ -14,6 +14,7 @@ members = [
     "crates/lib/kajiya",
     "crates/lib/rust-shaders",
     "crates/lib/rust-shaders-shared",
+    "crates/lib/darkmoon-icons",
 
     "crates/lib/ash-imgui",
 ]

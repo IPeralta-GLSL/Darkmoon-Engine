@@ -45,6 +45,12 @@ impl ImGuiBackend {
 
             let hidpi_factor = window.scale_factor();
             let font_size = (13.0 * hidpi_factor) as f32;
+            let icon_font_size = font_size * 2.0 / 3.0; // Font Awesome needs to be smaller
+            
+            // Load Font Awesome icons data
+            let fa_data = include_bytes!("../../../../assets/fonts/fa-solid-900.otf");
+            let icon_ranges = FontGlyphRanges::from_slice(&[0xe000, 0xf8ff, 0]);
+            
             imgui.fonts().add_font(&[
                 FontSource::DefaultFontData {
                     config: Some(FontConfig {
@@ -58,6 +64,15 @@ impl ImGuiBackend {
                     config: Some(FontConfig {
                         rasterizer_multiply: 1.75,
                         glyph_ranges: FontGlyphRanges::japanese(),
+                        ..FontConfig::default()
+                    }),
+                },
+                FontSource::TtfData {
+                    data: fa_data,
+                    size_pixels: icon_font_size,
+                    config: Some(FontConfig {
+                        rasterizer_multiply: 1.0,
+                        glyph_ranges: icon_ranges,
                         ..FontConfig::default()
                     }),
                 },

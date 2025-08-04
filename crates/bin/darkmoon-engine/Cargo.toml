@@ -11,6 +11,7 @@ kajiya-backend = { path = "../../lib/kajiya-backend" }  # New: for shader progre
 resource-streaming = { path = "../../lib/resource-streaming" }  # Resource streaming system
 kajiya-simple = { path = "../../lib/kajiya-simple", features = ["dear-imgui", "winit_serde"] }
 kajiya-asset-pipe = { path = "../../lib/kajiya-asset-pipe"}
+darkmoon-icons = { path = "../../lib/darkmoon-icons" }
 
 anyhow = "1.0"
 dolly = "=0.4.0"

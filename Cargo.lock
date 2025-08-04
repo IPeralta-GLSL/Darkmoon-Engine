@@ -833,6 +833,7 @@ name = "darkmoon-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "darkmoon-icons",
  "dolly",
  "futures",
  "gltf",
@@ -851,6 +852,13 @@ dependencies = [
  "structopt",
  "tokio",
  "toml 0.7.2",
+]
+
+[[package]]
+name = "darkmoon-icons"
+version = "0.1.0"
+dependencies = [
+ "imgui",
 ]
 
 [[package]]
