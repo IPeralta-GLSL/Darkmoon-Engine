@@ -41,6 +41,14 @@ pub struct Opt {
     #[structopt(long)]
     pub keymap: Option<PathBuf>,
 
+    /// Start with an empty scene instead of loading previous state
+    #[structopt(long)]
+    pub empty_scene: bool,
+
+    /// Reset all settings and start with empty scene
+    #[structopt(long)]
+    pub reset: bool,
+
     /// ray tracing?
     #[structopt(skip)]
     pub ray_tracing: bool,

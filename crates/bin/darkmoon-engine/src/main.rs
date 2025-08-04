@@ -39,7 +39,7 @@ impl AppState {
             .temporal_upsampling(opt.temporal_upsampling)
             .default_log_level(log::LevelFilter::Info)
             .fullscreen(opt.fullscreen.then_some(FullscreenMode::Exclusive))
-            .ray_tracing(true) // Ray tracing activado por defecto
+            .ray_tracing(true)
             .build(
                 WindowBuilder::new()
                     .with_title("Darkmoon Engine - Vulkan")
@@ -107,12 +107,15 @@ fn main() -> anyhow::Result<()> {
 
     let opt = Opt::from_args();
 
-    let mut persisted: PersistedState = File::open(APP_STATE_CONFIG_FILE_PATH)
-        .map_err(|err| anyhow::anyhow!(err))
-        .and_then(|file| Ok(ron::de::from_reader(file)?))
-        .unwrap_or_default();
+    let mut persisted: PersistedState = if opt.empty_scene || opt.reset || (opt.scene.is_none() && opt.mesh.is_none()) {
+        PersistedState::default()
+    } else {
+        File::open(APP_STATE_CONFIG_FILE_PATH)
+            .map_err(|err| anyhow::anyhow!(err))
+            .and_then(|file| Ok(ron::de::from_reader(file)?))
+            .unwrap_or_default()
+    };
 
-    // If supplying a new scene, clear the previous one.
     if opt.scene.is_some() || opt.mesh.is_some() {
         persisted.scene = SceneState::default();
     }
