@@ -141,7 +141,43 @@ impl RuntimeState {
                     // --- Menubar superior ---
                 if let Some(bar) = ui.begin_main_menu_bar() {
                     if let Some(file_menu) = ui.begin_menu(im_str!("File"), true) {
-                        // Opciones de File
+                        if let Some(scene_menu) = ui.begin_menu(im_str!("Load Scene"), true) {
+                            let scene_files = [
+                                ("Car", "assets/scenes/car.dmoon"),
+                                ("Car2", "assets/scenes/car2.dmoon"),
+                                ("Conference", "assets/scenes/conference.dmoon"),
+                                ("Pica", "assets/scenes/pica.dmoon"),
+                                ("Viziers", "assets/scenes/viziers.dmoon"),
+                                ("Gas Stations", "assets/scenes/gas_stations.dmoon"),
+                                ("Battle", "assets/scenes/battle.dmoon"),
+                                ("Girl", "assets/scenes/girl.dmoon"),
+                                ("Tree", "assets/scenes/tree.dmoon"),
+                                ("Mini Battle", "assets/scenes/mini_battle.dmoon"),
+                            ];
+                            
+                            for (name, path) in &scene_files {
+                                if imgui::MenuItem::new(&im_str!("{}", name)).build(ui) {
+                                    if let Err(err) = self.load_scene_from_path(persisted, ctx, path) {
+                                        log::error!("Failed to load scene {}: {:#}", name, err);
+                                    }
+                                }
+                            }
+                            
+                            ui.separator();
+                            
+                            if imgui::MenuItem::new(im_str!("Custom File...")).enabled(false).build(ui) {
+                            }
+                            ui.text_colored([0.7, 0.7, 0.7, 1.0], im_str!("Drag & drop .dmoon files to load"));
+                            
+                            scene_menu.end(&ui);
+                        }
+                        
+                        ui.separator();
+                        
+                        if imgui::MenuItem::new(im_str!("Clear Scene")).build(ui) {
+                            self.clear_scene_from_gui(persisted, ctx);
+                        }
+                        
                         file_menu.end(&ui);
                     }
                     if let Some(window_menu) = ui.begin_menu(im_str!("Window"), true) {

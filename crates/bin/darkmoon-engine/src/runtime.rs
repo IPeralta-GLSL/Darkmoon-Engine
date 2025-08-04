@@ -181,6 +181,17 @@ impl RuntimeState {
         }
     }
 
+    /// Convenience method for clearing scene from GUI (takes FrameContext)
+    pub fn clear_scene_from_gui(
+        &mut self,
+        persisted: &mut PersistedState,
+        ctx: &mut FrameContext,
+    ) {
+        for elem in persisted.scene.elements.drain(..) {
+            ctx.world_renderer.remove_instance(elem.instance);
+        }
+    }
+
     pub fn load_scene(
         &mut self,
         persisted: &mut PersistedState,
@@ -224,6 +235,16 @@ impl RuntimeState {
         }
 
         Ok(())
+    }
+
+    /// Convenience method for loading a scene from a path string (used by the GUI)
+    pub fn load_scene_from_path(
+        &mut self,
+        persisted: &mut PersistedState,
+        ctx: &mut FrameContext,
+        path: &str,
+    ) -> anyhow::Result<()> {
+        self.load_scene(persisted, &mut ctx.world_renderer, path)
     }
 
     fn update_camera(&mut self, persisted: &mut PersistedState, ctx: &FrameContext) {
