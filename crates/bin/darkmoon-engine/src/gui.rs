@@ -3,6 +3,7 @@ use crate::asset_browser::{AssetBrowser, AssetAction};
 use kajiya::RenderOverrideFlags;
 use kajiya_simple::*;
 use kajiya_backend::shader_progress::GLOBAL_SHADER_PROGRESS;  // Enhanced import
+use darkmoon_icons::*;
 
 use crate::{
     runtime::{RuntimeState, MAX_FPS_LIMIT},
@@ -10,6 +11,37 @@ use crate::{
 };
 
 impl RuntimeState {
+    fn get_element_icon(elem: &crate::persisted::SceneElement) -> char {
+        if elem.is_compound {
+            ICON_OBJECT_GROUP
+        } else {
+            match &elem.source {
+                crate::persisted::MeshSource::File(path) => {
+                    if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
+                        match extension.to_lowercase().as_str() {
+                            "dmoon" => ICON_FILM,           
+                            "gltf" | "glb" => ICON_CUBE,    
+                            _ => ICON_CUBE,                
+                        }
+                    } else {
+                        ICON_CUBE
+                    }
+                }
+                crate::persisted::MeshSource::Cache(_) => ICON_GEAR, 
+            }
+        }
+    }
+
+    /// mesh node
+    fn get_node_icon() -> char {
+        ICON_SHAPES 
+    }
+
+    /// sun
+    fn get_sun_icon() -> char {
+        ICON_SUN 
+    }
+
     pub fn do_gui(&mut self, persisted: &mut PersistedState, ctx: &mut FrameContext) {
         // --- Asset Browser State ---
         if self.ui_windows.asset_browser.is_none() {
@@ -64,28 +96,34 @@ impl RuntimeState {
                         .build(ui, || {
                             // Sun as a selectable item
                             let sun_selected = unsafe { SELECTED_ELEMENT == Some(usize::MAX) };
-                            if imgui::Selectable::new(im_str!("Sun Direction")).selected(sun_selected).build(ui) {
+                            let sun_label = create_icon_label(Self::get_sun_icon(), "Sun Direction");
+                            if imgui::Selectable::new(&im_str!("{}", sun_label)).selected(sun_selected).build(ui) {
                                 unsafe { SELECTED_ELEMENT = Some(usize::MAX); }
                             }
                             for (idx, elem) in persisted.scene.elements.iter().enumerate() {
-                                let label = if let Some(name) = elem.mesh_nodes.get(0).and_then(|n| n.name.as_ref()) {
-                                    im_str!("{}##{}", name, idx)
+                                let element_icon = Self::get_element_icon(elem);
+                                let element_name = if let Some(name) = elem.mesh_nodes.get(0).and_then(|n| n.name.as_ref()) {
+                                    name.clone()
                                 } else {
-                                    im_str!("{:?}##{}", elem.source, idx)
+                                    format!("{:?}", elem.source)
                                 };
+                                let element_label = create_icon_label(element_icon, &element_name);
+                                
                                 let is_selected = unsafe { SELECTED_ELEMENT == Some(idx) };
-                                if imgui::Selectable::new(&label).selected(is_selected).build(ui) {
+                                if imgui::Selectable::new(&im_str!("{}##{}", element_label, idx)).selected(is_selected).build(ui) {
                                     unsafe { SELECTED_ELEMENT = Some(idx); }
                                 }
                                 if elem.is_compound && !elem.mesh_nodes.is_empty() {
                                     imgui::TreeNode::new(&im_str!("Nodes##{}", idx)).build(ui, || {
                                         for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
-                                            let node_label = if let Some(n) = &node.name {
-                                                im_str!("{}##{}-{}", n, idx, nidx)
+                                            let node_icon = Self::get_node_icon();
+                                            let node_name = if let Some(n) = &node.name {
+                                                n.clone()
                                             } else {
-                                                im_str!("Node {}##{}-{}", nidx, idx, nidx)
+                                                format!("Node {}", nidx)
                                             };
-                                            ui.bullet_text(&node_label);
+                                            let node_label = create_icon_label(node_icon, &node_name);
+                                            ui.bullet_text(&im_str!("{}##{}-{}", node_label, idx, nidx));
                                         }
                                     });
                                 }
@@ -400,24 +438,29 @@ impl RuntimeState {
                         .build(ui)
                     {
                         for (idx, elem) in persisted.scene.elements.iter().enumerate() {
-                            let label = if let Some(name) = elem.mesh_nodes.get(0).and_then(|n| n.name.as_ref()) {
-                                im_str!("{}##{}", name, idx)
+                            let element_icon = Self::get_element_icon(elem);
+                            let element_name = if let Some(name) = elem.mesh_nodes.get(0).and_then(|n| n.name.as_ref()) {
+                                name.clone()
                             } else {
-                                im_str!("{:?}##{}", elem.source, idx)
+                                format!("{:?}", elem.source)
                             };
+                            let element_label = create_icon_label(element_icon, &element_name);
+                            
                             if elem.is_compound && !elem.mesh_nodes.is_empty() {
-                                imgui::TreeNode::new(&label).build(ui, || {
+                                imgui::TreeNode::new(&im_str!("{}##{}", element_label, idx)).build(ui, || {
                                     for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
-                                        let node_label = if let Some(n) = &node.name {
-                                            im_str!("{}##{}-{}", n, idx, nidx)
+                                        let node_icon = Self::get_node_icon();
+                                        let node_name = if let Some(n) = &node.name {
+                                            n.clone()
                                         } else {
-                                            im_str!("Node {}##{}-{}", nidx, idx, nidx)
+                                            format!("Node {}", nidx)
                                         };
-                                        ui.bullet_text(&node_label);
+                                        let node_label = create_icon_label(node_icon, &node_name);
+                                        ui.bullet_text(&im_str!("{}##{}-{}", node_label, idx, nidx));
                                     }
                                 });
                             } else {
-                                ui.bullet_text(&label);
+                                ui.bullet_text(&im_str!("{}##{}", element_label, idx));
                             }
                         }
                     }
