@@ -27,6 +27,7 @@ num_cpus = "1.16"  # New: for streaming worker thread calculation
 tokio = { version = "1.0", features = ["rt-multi-thread"] }  # New: for async streaming
 futures = "0.3"  # New: for futures executor
 parking_lot = "0.12"  # New: for RwLock in streaming
+gilrs = "0.10"
 
 [features]
 dlss = ["kajiya/dlss"]

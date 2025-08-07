@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context};
-use kajiya_simple::{KeyMap, KeyboardMap, VirtualKeyCode, VirtualKeyCode::*};
+use kajiya_simple::{KeyMap, KeyboardMap, GamepadMap, GamepadButtonMap, GamepadAxisMap, GamepadButton, GamepadAxis, VirtualKeyCode, VirtualKeyCode::*};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{canonicalize, File},
@@ -50,6 +50,24 @@ impl From<Movement> for KeyboardMap {
             .bind(val.down, KeyMap::new("move_up", -1.0))
             .bind(val.boost, KeyMap::new("boost", 1.0).activation_time(0.25))
             .bind(val.slow, KeyMap::new("boost", -1.0).activation_time(0.5))
+    }
+}
+
+impl From<Movement> for GamepadMap {
+    fn from(_val: Movement) -> Self {
+        GamepadMap::new()
+            .bind_axis(GamepadAxis::LeftStickY, GamepadAxisMap::new("move_fwd", 1.0))
+            .bind_axis(GamepadAxis::LeftStickX, GamepadAxisMap::new("move_right", 1.0))
+            .bind_axis(GamepadAxis::RightStickX, GamepadAxisMap::new("look_right", -1.0))
+            .bind_axis(GamepadAxis::RightStickY, GamepadAxisMap::new("look_up", 1.0))
+            .bind_button(GamepadButton::RightBumper, GamepadButtonMap::new("move_up", 1.0))
+            .bind_button(GamepadButton::LeftBumper, GamepadButtonMap::new("move_up", -1.0))
+            .bind_button(GamepadButton::RightTrigger, GamepadButtonMap::new("boost", 1.0).activation_time(0.25))
+            .bind_button(GamepadButton::LeftTrigger, GamepadButtonMap::new("boost", -1.0).activation_time(0.5))
+            .bind_button(GamepadButton::Y, GamepadButtonMap::new("move_fwd", 1.0))
+            .bind_button(GamepadButton::A, GamepadButtonMap::new("move_fwd", -1.0))
+            .bind_button(GamepadButton::X, GamepadButtonMap::new("move_right", -1.0))
+            .bind_button(GamepadButton::B, GamepadButtonMap::new("move_right", 1.0))
     }
 }
 

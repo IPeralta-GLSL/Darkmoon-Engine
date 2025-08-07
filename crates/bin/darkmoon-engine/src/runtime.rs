@@ -10,6 +10,7 @@ use kajiya::{
     world_renderer::{AddMeshOptions, MeshHandle, WorldRenderer},
 };
 use kajiya_simple::*;
+use gilrs::Gilrs;
 
 use crate::{
     opt::Opt,
@@ -54,8 +55,11 @@ pub struct RuntimeState {
     pub camera: CameraRig,
     pub mouse: MouseState,
     pub keyboard: KeyboardState,
+    pub gamepad: GamepadState,
+    pub gilrs: Gilrs,
     pub keymap_config: KeymapConfig,
     pub movement_map: KeyboardMap,
+    pub gamepad_movement_map: GamepadMap,
 
     pub show_gui: bool,
     pub sun_direction_interp: Vec3,
@@ -118,8 +122,14 @@ impl RuntimeState {
             camera,
             mouse,
             keyboard,
+            gamepad: GamepadState::default(),
+            gilrs: Gilrs::new().unwrap_or_else(|e| {
+                log::warn!("Failed to initialize gamepad support: {}", e);
+                panic!("Could not initialize gamepad system: {}", e);
+            }),
             keymap_config: keymap_config.clone(),
-            movement_map: keymap_config.movement.into(),
+            movement_map: keymap_config.movement.clone().into(),
+            gamepad_movement_map: keymap_config.movement.into(),
 
             show_gui: true,
             sun_direction_interp,
@@ -270,7 +280,18 @@ impl RuntimeState {
             ctx.window.set_cursor_visible(true);
         }
 
-        let input = self.movement_map.map(&self.keyboard, ctx.dt_filtered);
+        let mut input = self.movement_map.map(&self.keyboard, ctx.dt_filtered);
+        let gamepad_input = self.gamepad_movement_map.map(&self.gamepad, ctx.dt_filtered);
+        
+        for (axis, value) in gamepad_input {
+            *input.entry(axis).or_default() += value;
+        }
+        
+        // Clamp the combined values
+        for value in input.values_mut() {
+            *value = value.clamp(-1.0, 1.0);
+        }
+        
         let move_vec = self.camera.final_transform.rotation
             * Vec3::new(input["move_right"], input["move_up"], -input["move_fwd"])
                 .clamp_length_max(1.0)
@@ -291,6 +312,20 @@ impl RuntimeState {
                 -sensitivity * self.mouse.delta.x,
                 -sensitivity * self.mouse.delta.y,
             );
+        }
+
+        // Gamepad camera rotation with right stick
+        if self.gamepad.connected {
+            let gamepad_input = self.gamepad_movement_map.map(&self.gamepad, ctx.dt_filtered);
+            if let (Some(&look_right), Some(&look_up)) = (gamepad_input.get("look_right"), gamepad_input.get("look_up")) {
+                if look_right.abs() > 0.1 || look_up.abs() > 0.1 {
+                    let sensitivity = 20.0; // Gamepad needs higher sensitivity (10x faster)
+                    self.camera.driver_mut::<YawPitch>().rotate_yaw_pitch(
+                        sensitivity * look_right * ctx.dt_filtered,
+                        sensitivity * look_up * ctx.dt_filtered,
+                    );
+                }
+            }
         }
 
         self.camera
@@ -735,6 +770,8 @@ impl RuntimeState {
 
         self.keyboard.update(ctx.events);
         self.mouse.update(ctx.events);
+        self.gamepad.update_from_gilrs(&mut self.gilrs);
+        self.gamepad.update_ticks();
         self.handle_file_drop_events(persisted, ctx.world_renderer, ctx.events);
 
         let orig_persisted_state = persisted.clone();
@@ -1378,9 +1415,7 @@ impl RuntimeState {
         
         triangles
     }
-    
-    /// Generate example triangles from an AABB (for demonstration)
-    /// In a real implementation, this would use actual mesh geometry
+    /// Generate triangles representing the faces of an AABB transformed by a given matrix
     fn triangles_from_aabb(&self, aabb: &crate::math::Aabb, transform: &Mat4) -> Vec<crate::math::Triangle> {
         let min_point = aabb.min;
         let max_point = aabb.max;
