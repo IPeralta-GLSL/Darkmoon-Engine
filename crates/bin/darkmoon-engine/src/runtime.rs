@@ -319,7 +319,7 @@ impl RuntimeState {
             let gamepad_input = self.gamepad_movement_map.map(&self.gamepad, ctx.dt_filtered);
             if let (Some(&look_right), Some(&look_up)) = (gamepad_input.get("look_right"), gamepad_input.get("look_up")) {
                 if look_right.abs() > 0.1 || look_up.abs() > 0.1 {
-                    let sensitivity = 20.0; // Gamepad needs higher sensitivity (10x faster)
+                    let sensitivity = 100.0; // Gamepad sensitivity
                     self.camera.driver_mut::<YawPitch>().rotate_yaw_pitch(
                         sensitivity * look_right * ctx.dt_filtered,
                         sensitivity * look_up * ctx.dt_filtered,
