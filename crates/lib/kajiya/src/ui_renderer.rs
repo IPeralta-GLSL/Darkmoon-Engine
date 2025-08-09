@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use kajiya_backend::{ash::vk, vk_sync::AccessType, vulkan::image::*, BackendError};
-use kajiya_rg::{self as rg};
+use kajiya_rg::{self as rg, ImageDesc};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
@@ -22,14 +22,19 @@ impl UiRenderer {
 
     fn render_ui(&mut self, rg: &mut rg::RenderGraph) -> rg::Handle<Image> {
         if let Some((ui_renderer, image)) = self.ui_frame.take() {
+            log::info!("UiRenderer: Found ui_frame, setting up render pass");
             let mut ui_tex = rg.import(image, AccessType::Nothing);
             let mut pass = rg.add_pass("ui");
 
             pass.raster(&mut ui_tex, AccessType::ColorAttachmentWrite);
-            pass.render(move |api| ui_renderer(api.cb.raw));
+            pass.render(move |api| {
+                log::info!("UiRenderer: Executing UI render callback");
+                ui_renderer(api.cb.raw)
+            });
 
             ui_tex
         } else {
+            log::debug!("UiRenderer: No ui_frame found, creating dummy transparent image");
             let mut blank_img = rg.create(ImageDesc::new_2d(vk::Format::R8G8B8A8_UNORM, [1, 1]));
             rg::imageops::clear_color(rg, &mut blank_img, [0.0f32; 4]);
             blank_img

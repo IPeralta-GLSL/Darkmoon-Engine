@@ -160,6 +160,7 @@ impl Renderer {
         {
             let main_cb = &current_frame.main_command_buffer;
 
+            #[cfg(feature = "gpu-profiler-enabled")]
             current_frame
                 .profiler_data
                 .begin_frame(&device.raw, main_cb.raw);
@@ -255,6 +256,7 @@ impl Renderer {
                 ),
             );
 
+            #[cfg(feature = "gpu-profiler-enabled")]
             current_frame
                 .profiler_data
                 .end_frame(&device.raw, presentation_cb.raw);

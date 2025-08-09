@@ -150,11 +150,14 @@ fn load_exr(file_path: &Path) -> anyhow::Result<ImageRgba16f> {
                 ImageRgba16f::new(resolution.width() as _, resolution.height() as _)
             },
             // set each pixel in the png buffer from the exr file
-            |output, position, (r, g, b): (f16, f16, f16)| {
+            |output, position, (r, g, b): (f32, f32, f32)| {
+                let r_half = f16::from_f32(r);
+                let g_half = f16::from_f32(g);
+                let b_half = f16::from_f32(b);
                 output.put_pixel(
                     position.0 as _,
                     position.1 as _,
-                    [r.min(f16::MAX), g.min(f16::MAX), b.min(f16::MAX), f16::ONE],
+                    [r_half.min(f16::MAX), g_half.min(f16::MAX), b_half.min(f16::MAX), f16::ONE],
                 );
             },
         )

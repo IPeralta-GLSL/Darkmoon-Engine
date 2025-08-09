@@ -94,26 +94,66 @@ impl Sequence {
     pub fn to_playback(&self) -> CameraPlaybackSequence {
         CameraPlaybackSequence {
             duration: self.items.last().map_or(0.0, |item| item.t),
-            camera_position_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
+            camera_position_x_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
                 Some(splines::Key::new(
                     k.t,
-                    k.value.camera_position.as_option()?,
+                    k.value.camera_position.as_option()?.x,
                     splines::Interpolation::CatmullRom,
                 ))
             })),
-            camera_direction_spline: splines::Spline::from_iter(self.items.iter().filter_map(
-                |k| {
-                    Some(splines::Key::new(
-                        k.t,
-                        k.value.camera_direction.as_option()?,
-                        splines::Interpolation::CatmullRom,
-                    ))
-                },
-            )),
-            towards_sun_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
+            camera_position_y_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
                 Some(splines::Key::new(
                     k.t,
-                    k.value.towards_sun.as_option()?,
+                    k.value.camera_position.as_option()?.y,
+                    splines::Interpolation::CatmullRom,
+                ))
+            })),
+            camera_position_z_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
+                Some(splines::Key::new(
+                    k.t,
+                    k.value.camera_position.as_option()?.z,
+                    splines::Interpolation::CatmullRom,
+                ))
+            })),
+            camera_direction_x_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
+                Some(splines::Key::new(
+                    k.t,
+                    k.value.camera_direction.as_option()?.x,
+                    splines::Interpolation::CatmullRom,
+                ))
+            })),
+            camera_direction_y_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
+                Some(splines::Key::new(
+                    k.t,
+                    k.value.camera_direction.as_option()?.y,
+                    splines::Interpolation::CatmullRom,
+                ))
+            })),
+            camera_direction_z_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
+                Some(splines::Key::new(
+                    k.t,
+                    k.value.camera_direction.as_option()?.z,
+                    splines::Interpolation::CatmullRom,
+                ))
+            })),
+            towards_sun_x_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
+                Some(splines::Key::new(
+                    k.t,
+                    k.value.towards_sun.as_option()?.x,
+                    splines::Interpolation::CatmullRom,
+                ))
+            })),
+            towards_sun_y_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
+                Some(splines::Key::new(
+                    k.t,
+                    k.value.towards_sun.as_option()?.y,
+                    splines::Interpolation::CatmullRom,
+                ))
+            })),
+            towards_sun_z_spline: splines::Spline::from_iter(self.items.iter().filter_map(|k| {
+                Some(splines::Key::new(
+                    k.t,
+                    k.value.towards_sun.as_option()?.z,
                     splines::Interpolation::CatmullRom,
                 ))
             })),
@@ -164,9 +204,15 @@ impl Sequence {
 
 pub struct CameraPlaybackSequence {
     duration: f32,
-    camera_position_spline: splines::Spline<f32, Vec3>,
-    camera_direction_spline: splines::Spline<f32, Vec3>,
-    towards_sun_spline: splines::Spline<f32, Vec3>,
+    camera_position_x_spline: splines::Spline<f32, f32>,
+    camera_position_y_spline: splines::Spline<f32, f32>,
+    camera_position_z_spline: splines::Spline<f32, f32>,
+    camera_direction_x_spline: splines::Spline<f32, f32>,
+    camera_direction_y_spline: splines::Spline<f32, f32>,
+    camera_direction_z_spline: splines::Spline<f32, f32>,
+    towards_sun_x_spline: splines::Spline<f32, f32>,
+    towards_sun_y_spline: splines::Spline<f32, f32>,
+    towards_sun_z_spline: splines::Spline<f32, f32>,
 }
 
 impl CameraPlaybackSequence {
@@ -175,9 +221,22 @@ impl CameraPlaybackSequence {
             return None;
         }
 
-        let camera_position = self.camera_position_spline.clamped_sample(t)?;
-        let camera_direction = self.camera_direction_spline.clamped_sample(t)?;
-        let towards_sun = self.towards_sun_spline.clamped_sample(t)?;
+        // Sample each component separately
+        let pos_x = self.camera_position_x_spline.clamped_sample(t)?;
+        let pos_y = self.camera_position_y_spline.clamped_sample(t)?;
+        let pos_z = self.camera_position_z_spline.clamped_sample(t)?;
+        
+        let dir_x = self.camera_direction_x_spline.clamped_sample(t)?;
+        let dir_y = self.camera_direction_y_spline.clamped_sample(t)?;
+        let dir_z = self.camera_direction_z_spline.clamped_sample(t)?;
+        
+        let sun_x = self.towards_sun_x_spline.clamped_sample(t)?;
+        let sun_y = self.towards_sun_y_spline.clamped_sample(t)?;
+        let sun_z = self.towards_sun_z_spline.clamped_sample(t)?;
+
+        let camera_position = Vec3::new(pos_x, pos_y, pos_z);
+        let camera_direction = Vec3::new(dir_x, dir_y, dir_z);
+        let towards_sun = Vec3::new(sun_x, sun_y, sun_z);
 
         Some(SequenceFullValue {
             camera_position,

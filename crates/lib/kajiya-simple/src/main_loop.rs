@@ -48,13 +48,13 @@ pub struct ImguiContext<'a> {
 
 #[cfg(feature = "dear-imgui")]
 impl<'a> ImguiContext<'a> {
-    pub fn frame(self, callback: impl FnOnce(&imgui::Ui<'_>)) {
+    pub fn frame(self, callback: impl FnOnce(&imgui::Ui)) {
         let ui = self
             .imgui_backend
-            .prepare_frame(self.window, self.imgui, self.dt_filtered);
-        callback(&ui);
+            .prepare_frame(self.window, self.imgui, std::time::Duration::from_secs_f32(self.dt_filtered));
+        callback(ui);
         self.imgui_backend
-            .finish_frame(ui, self.window, self.ui_renderer);
+            .finish_frame(self.window, self.imgui, self.ui_renderer);
     }
 }
 
@@ -358,8 +358,8 @@ impl SimpleMainLoop {
 
         let mut running = true;
         while running {
-            gpu_profiler::profiler().begin_frame();
-            let gpu_frame_start_ns = puffin::now_ns();
+            // gpu_profiler::profiler().begin_frame();
+            // let gpu_frame_start_ns = puffin::now_ns();
 
             puffin::profile_scope!("main loop");
             puffin::GlobalProfiler::lock().new_frame();
@@ -534,10 +534,10 @@ impl SimpleMainLoop {
                 }
             }
 
-            gpu_profiler::profiler().end_frame();
-            if let Some(report) = gpu_profiler::profiler().last_report() {
-                report.send_to_puffin(gpu_frame_start_ns);
-            };
+            // gpu_profiler::profiler().end_frame();
+            // if let Some(report) = gpu_profiler::profiler().last_report() {
+            //     report.send_to_puffin(gpu_frame_start_ns);
+            // };
         }
 
         Ok(())

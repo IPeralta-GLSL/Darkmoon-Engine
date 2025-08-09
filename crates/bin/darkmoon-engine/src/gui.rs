@@ -1,9 +1,9 @@
-use imgui::im_str;
 use crate::asset_browser::{AssetBrowser, AssetAction};
 use kajiya::RenderOverrideFlags;
 use kajiya_simple::*;
 use kajiya_backend::shader_progress::GLOBAL_SHADER_PROGRESS;  // Enhanced import
 use darkmoon_icons::*;
+use imgui::*;
 
 use crate::{
     runtime::{RuntimeState, MAX_FPS_LIMIT},
@@ -53,6 +53,7 @@ impl RuntimeState {
 
         if self.keyboard.was_just_pressed(self.keymap_config.ui.toggle) {
             self.show_gui = !self.show_gui;
+            log::info!("GUI toggle pressed. show_gui is now: {}", self.show_gui);
         }
 
         ctx.world_renderer.rg_debug_hook = self.locked_rg_debug_hook.clone();
@@ -60,10 +61,25 @@ impl RuntimeState {
         // Always show GUI when shaders are compiling, even if normally hidden
         let is_compiling = Self::is_shader_compilation_active() || kajiya_backend::shader_progress::is_compilation_or_heavy_work_active();
         let should_show_gui = self.show_gui || is_compiling;
+        
+        // Debug logging for GUI state
+        static mut LAST_GUI_STATE: Option<(bool, bool, bool)> = None;
+        let current_state = (self.show_gui, is_compiling, should_show_gui);
+        unsafe {
+            if LAST_GUI_STATE != Some(current_state) {
+                log::info!("GUI state changed: show_gui={}, is_compiling={}, should_show_gui={}", 
+                    self.show_gui, is_compiling, should_show_gui);
+                LAST_GUI_STATE = Some(current_state);
+            }
+        }
 
         if should_show_gui || is_compiling {
-            ctx.imgui.take().unwrap().frame(|ui| {
-                // --- Asset Browser Window ---
+            log::debug!("Starting ImGui frame with show_gui={}, is_compiling={}", self.show_gui, is_compiling);
+            if let Some(imgui_ctx) = ctx.imgui.take() {
+                log::info!("ImGui context taken successfully, calling frame()");
+                imgui_ctx.frame(|ui| {
+                    log::debug!("Inside ImGui frame callback");
+                    // --- Asset Browser Window ---
                 if let Some(asset_browser) = self.ui_windows.asset_browser.as_mut() {
                     if self.ui_windows.show_asset_browser && asset_browser.open {
                         let action = asset_browser.show(ui);
@@ -91,13 +107,16 @@ impl RuntimeState {
                 // Outliner window (was Hierarchy)
                 static mut SELECTED_ELEMENT: Option<usize> = None;
                 if self.ui_windows.show_hierarchy {
-                    imgui::Window::new(im_str!("Outliner")).opened(&mut self.ui_windows.show_hierarchy)
+                    ui.window("Outliner")
+                        .opened(&mut self.ui_windows.show_hierarchy)
                         .size([350.0, 500.0], imgui::Condition::FirstUseEver)
-                        .build(ui, || {
+                        .build(|| {
                             // Sun as a selectable item
                             let sun_selected = unsafe { SELECTED_ELEMENT == Some(usize::MAX) };
                             let sun_label = create_icon_label(Self::get_sun_icon(), "Sun Direction");
-                            if imgui::Selectable::new(&im_str!("{}", sun_label)).selected(sun_selected).build(ui) {
+                            if ui.selectable_config(&format!("{}", sun_label))
+                                .selected(sun_selected)
+                                .build() {
                                 unsafe { SELECTED_ELEMENT = Some(usize::MAX); }
                             }
                             for (idx, elem) in persisted.scene.elements.iter().enumerate() {
@@ -110,11 +129,14 @@ impl RuntimeState {
                                 let element_label = create_icon_label(element_icon, &element_name);
                                 
                                 let is_selected = unsafe { SELECTED_ELEMENT == Some(idx) };
-                                if imgui::Selectable::new(&im_str!("{}##{}", element_label, idx)).selected(is_selected).build(ui) {
+                                if ui.selectable_config(&format!("{}##{}", element_label, idx))
+                                    .selected(is_selected)
+                                    .build() {
                                     unsafe { SELECTED_ELEMENT = Some(idx); }
                                 }
                                 if elem.is_compound && !elem.mesh_nodes.is_empty() {
-                                    imgui::TreeNode::new(&im_str!("Nodes##{}", idx)).build(ui, || {
+                                    ui.tree_node_config(&format!("Nodes##{}", idx))
+                                        .build(|| {
                                         for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
                                             let node_icon = Self::get_node_icon();
                                             let node_name = if let Some(n) = &node.name {
@@ -123,7 +145,7 @@ impl RuntimeState {
                                                 format!("Node {}", nidx)
                                             };
                                             let node_label = create_icon_label(node_icon, &node_name);
-                                            ui.bullet_text(&im_str!("{}##{}-{}", node_label, idx, nidx));
+                                            ui.bullet_text(&format!("{}##{}-{}", node_label, idx, nidx));
                                         }
                                     });
                                 }
@@ -136,49 +158,51 @@ impl RuntimeState {
                 if let Some(idx) = selected_idx {
                     if idx == usize::MAX {
                         // Sun attributes
-                        imgui::Window::new(im_str!("Attributes")).size([350.0, 200.0], imgui::Condition::FirstUseEver)
-                            .build(ui, || {
+                        ui.window("Attributes")
+                            .size([350.0, 200.0], imgui::Condition::FirstUseEver)
+                            .build(|| {
                                 let controller = &mut persisted.light.sun.controller;
                                 let mut dir = controller.towards_sun();
-                                ui.text(im_str!("Sun Direction (editable):"));
+                                ui.text("Sun Direction (editable):");
                                 let mut changed = false;
-                                changed |= imgui::Drag::<f32>::new(im_str!("X")).range(-1.0..=1.0).speed(0.01).build(ui, &mut dir.x);
-                                changed |= imgui::Drag::<f32>::new(im_str!("Y")).range(-1.0..=1.0).speed(0.01).build(ui, &mut dir.y);
-                                changed |= imgui::Drag::<f32>::new(im_str!("Z")).range(-1.0..=1.0).speed(0.01).build(ui, &mut dir.z);
+                                changed |= Drag::new("X").speed(0.01).range(-1.0, 1.0).build(ui, &mut dir.x);
+                                changed |= Drag::new("Y").speed(0.01).range(-1.0, 1.0).build(ui, &mut dir.y);
+                                changed |= Drag::new("Z").speed(0.01).range(-1.0, 1.0).build(ui, &mut dir.z);
                                 if changed {
                                     if dir.length() > 1e-4 {
                                         controller.set_towards_sun(dir.normalize());
                                     }
                                 }
                                 ui.separator();
-                                ui.text(im_str!("Current: ({:.3}, {:.3}, {:.3})", dir.x, dir.y, dir.z));
+                                ui.text(&format!("Current: ({:.3}, {:.3}, {:.3})", dir.x, dir.y, dir.z));
                             });
                     } else if let Some(elem) = persisted.scene.elements.get_mut(idx) {
-                        imgui::Window::new(im_str!("Attributes")).size([350.0, 300.0], imgui::Condition::FirstUseEver)
-                            .build(ui, || {
-                                ui.text(im_str!("Source: {:?}", elem.source));
-                                ui.text(im_str!("Compound: {}", elem.is_compound));
+                        ui.window("Attributes")
+                            .size([350.0, 300.0], imgui::Condition::FirstUseEver)
+                            .build(|| {
+                                ui.text(&format!("Source: {:?}", elem.source));
+                                ui.text(&format!("Compound: {}", elem.is_compound));
                                 ui.separator();
                                 let pos = &mut elem.transform.position;
                                 let rot = &mut elem.transform.rotation_euler_degrees;
                                 let scale = &mut elem.transform.scale;
-                                imgui::Drag::<f32>::new(im_str!("Position X")).speed(0.01).build(ui, &mut pos.x);
-                                imgui::Drag::<f32>::new(im_str!("Position Y")).speed(0.01).build(ui, &mut pos.y);
-                                imgui::Drag::<f32>::new(im_str!("Position Z")).speed(0.01).build(ui, &mut pos.z);
-                                imgui::Drag::<f32>::new(im_str!("Rotation X")).speed(0.1).build(ui, &mut rot.x);
-                                imgui::Drag::<f32>::new(im_str!("Rotation Y")).speed(0.1).build(ui, &mut rot.y);
-                                imgui::Drag::<f32>::new(im_str!("Rotation Z")).speed(0.1).build(ui, &mut rot.z);
-                                imgui::Drag::<f32>::new(im_str!("Scale X")).speed(0.01).build(ui, &mut scale.x);
-                                imgui::Drag::<f32>::new(im_str!("Scale Y")).speed(0.01).build(ui, &mut scale.y);
-                                imgui::Drag::<f32>::new(im_str!("Scale Z")).speed(0.01).build(ui, &mut scale.z);
+                                Drag::new("Position X").speed(0.01).build(ui, &mut pos.x);
+                                Drag::new("Position Y").speed(0.01).build(ui, &mut pos.y);
+                                Drag::new("Position Z").speed(0.01).build(ui, &mut pos.z);
+                                Drag::new("Rotation X").speed(0.1).build(ui, &mut rot.x);
+                                Drag::new("Rotation Y").speed(0.1).build(ui, &mut rot.y);
+                                Drag::new("Rotation Z").speed(0.1).build(ui, &mut rot.z);
+                                Drag::new("Scale X").speed(0.01).build(ui, &mut scale.x);
+                                Drag::new("Scale Y").speed(0.01).build(ui, &mut scale.y);
+                                Drag::new("Scale Z").speed(0.01).build(ui, &mut scale.z);
                                 if !elem.mesh_nodes.is_empty() {
                                     ui.separator();
-                                    ui.text(im_str!("Mesh nodes:"));
+                                    ui.text("Mesh nodes:");
                                     for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
                                         if let Some(name) = &node.name {
-                                            ui.bullet_text(&im_str!("{}", name));
+                                            ui.bullet_text(name);
                                         } else {
-                                            ui.bullet_text(&im_str!("Node {}", nidx));
+                                            ui.bullet_text(&format!("Node {}", nidx));
                                         }
                                     }
                                 }
@@ -192,10 +216,12 @@ impl RuntimeState {
 
                 // Only show regular GUI if user has it enabled
                 if self.show_gui {
+                    log::debug!("Showing regular GUI (show_gui=true)");
+                    
                     // --- Menubar superior ---
                 if let Some(bar) = ui.begin_main_menu_bar() {
-                    if let Some(file_menu) = ui.begin_menu(im_str!("File"), true) {
-                        if let Some(scene_menu) = ui.begin_menu(im_str!("Load Scene"), true) {
+                    if let Some(file_menu) = ui.begin_menu("File") {
+                        if let Some(scene_menu) = ui.begin_menu("Load Scene") {
                             let scene_files = [
                                 ("Car", "assets/scenes/car.dmoon"),
                                 ("Car2", "assets/scenes/car2.dmoon"),
@@ -210,7 +236,7 @@ impl RuntimeState {
                             ];
                             
                             for (name, path) in &scene_files {
-                                if imgui::MenuItem::new(&im_str!("{}", name)).build(ui) {
+                                if ui.menu_item(name) {
                                     if let Err(err) = self.load_scene_from_path(persisted, ctx, path) {
                                         log::error!("Failed to load scene {}: {:#}", name, err);
                                     }
@@ -219,43 +245,43 @@ impl RuntimeState {
                             
                             ui.separator();
                             
-                            if imgui::MenuItem::new(im_str!("Custom File...")).enabled(false).build(ui) {
+                            if ui.menu_item_config("Custom File...").enabled(false).build() {
                             }
-                            ui.text_colored([0.7, 0.7, 0.7, 1.0], im_str!("Drag & drop .dmoon files to load"));
+                            ui.text_colored([0.7, 0.7, 0.7, 1.0], "Drag & drop .dmoon files to load");
                             
-                            scene_menu.end(&ui);
+                            scene_menu.end();
                         }
                         
                         ui.separator();
                         
-                        if imgui::MenuItem::new(im_str!("Clear Scene")).build(ui) {
+                        if ui.menu_item("Clear Scene") {
                             self.clear_scene_from_gui(persisted, ctx);
                         }
                         
-                        file_menu.end(&ui);
+                        file_menu.end();
                     }
-                    if let Some(window_menu) = ui.begin_menu(im_str!("Window"), true) {
+                    if let Some(window_menu) = ui.begin_menu("Window") {
                         let show_assets = self.ui_windows.asset_browser.as_ref().map_or(false, |a| a.open && self.ui_windows.show_asset_browser);
-                        if imgui::MenuItem::new(im_str!("Assets Browser")).selected(show_assets).build(ui) {
+                        if ui.menu_item_config("Assets Browser").selected(show_assets).build() {
                             if let Some(asset_browser) = self.ui_windows.asset_browser.as_mut() {
                                 asset_browser.open = !asset_browser.open;
                                 self.ui_windows.show_asset_browser = asset_browser.open;
                             }
                         }
-                        if imgui::MenuItem::new(im_str!("Hierarchy")).selected(self.ui_windows.show_hierarchy).build(ui) {
+                        if ui.menu_item_config("Hierarchy").selected(self.ui_windows.show_hierarchy).build() {
                             self.ui_windows.show_hierarchy = !self.ui_windows.show_hierarchy;
                         }
-                        if imgui::MenuItem::new(im_str!("Debug")).selected(self.ui_windows.show_debug).build(ui) {
+                        if ui.menu_item_config("Debug").selected(self.ui_windows.show_debug).build() {
                             self.ui_windows.show_debug = !self.ui_windows.show_debug;
                         }
-                        window_menu.end(&ui);
+                        window_menu.end();
                     }
-                    if let Some(view_menu) = ui.begin_menu(im_str!("View"), true) {
-                        if let Some(rendering_menu) = ui.begin_menu(im_str!("Rendering Type"), true) {
+                    if let Some(view_menu) = ui.begin_menu("View") {
+                        if let Some(rendering_menu) = ui.begin_menu("Rendering Type") {
                             // Rasterization mode (RTX OFF)
                             let is_rasterization = !ctx.world_renderer.is_ray_tracing_enabled() && 
                                                   ctx.world_renderer.render_mode == RenderMode::Standard;
-                            if imgui::MenuItem::new(im_str!("Rasterization")).selected(is_rasterization).build(ui) {
+                            if ui.menu_item_config("Rasterization").selected(is_rasterization).build() {
                                 ctx.world_renderer.set_ray_tracing_enabled(false);
                                 ctx.world_renderer.render_mode = RenderMode::Standard;
                             }
@@ -263,138 +289,177 @@ impl RuntimeState {
                             // Ray Tracing mode
                             let is_ray_tracing = ctx.world_renderer.is_ray_tracing_enabled() && 
                                                 ctx.world_renderer.render_mode == RenderMode::Standard;
-                            if imgui::MenuItem::new(im_str!("Ray Tracing")).selected(is_ray_tracing).build(ui) {
+                            if ui.menu_item_config("Ray Tracing").selected(is_ray_tracing).build() {
                                 ctx.world_renderer.set_ray_tracing_enabled(true);
                                 ctx.world_renderer.render_mode = RenderMode::Standard;
                             }
                             
                             // Path Tracing mode (Reference)
                             let is_path_tracing = ctx.world_renderer.render_mode == RenderMode::Reference;
-                            if imgui::MenuItem::new(im_str!("Path Tracing")).selected(is_path_tracing).build(ui) {
+                            if ui.menu_item_config("Path Tracing").selected(is_path_tracing).build() {
                                 ctx.world_renderer.render_mode = RenderMode::Reference;
                                 ctx.world_renderer.reset_reference_accumulation = true;
                             }
                             
-                            rendering_menu.end(&ui);
+                            rendering_menu.end();
                         }
-                        view_menu.end(&ui);
+                        view_menu.end();
                     }
-                    bar.end(&ui);
+                    bar.end();
                 }
 
-                if imgui::CollapsingHeader::new(im_str!("Tweaks"))
-                    .default_open(true)
-                    .build(ui)
-                {
-                    imgui::Drag::<f32>::new(im_str!("EV shift"))
-                        .range(-8.0..=12.0)
-                        .speed(0.01)
-                        .build(ui, &mut persisted.exposure.ev_shift);
+                if ui.collapsing_header("RTX", TreeNodeFlags::DEFAULT_OPEN) {
+                    Drag::new("EV shift").range(-8.0, 12.0).speed(0.01).build(ui, &mut persisted.exposure.ev_shift);
 
                     ui.checkbox(
-                        im_str!("Use dynamic exposure"),
+                        "Use dynamic exposure",
                         &mut persisted.exposure.use_dynamic_adaptation,
                     );
 
-                    imgui::Drag::<f32>::new(im_str!("Adaptation speed"))
-                        .range(-4.0..=4.0)
-                        .speed(0.01)
-                        .build(ui, &mut persisted.exposure.dynamic_adaptation_speed);
+                    Drag::new("Adaptation speed").range(-4.0, 4.0).speed(0.01).build(ui, &mut persisted.exposure.dynamic_adaptation_speed);
 
-                    imgui::Drag::<f32>::new(im_str!("Luminance histogram low clip"))
-                        .range(0.0..=1.0)
-                        .speed(0.001)
-                        .build(ui, &mut persisted.exposure.dynamic_adaptation_low_clip);
+                    Drag::new("Luminance histogram low clip").range(0.0, 1.0).speed(0.001).build(ui, &mut persisted.exposure.dynamic_adaptation_low_clip);
                     persisted.exposure.dynamic_adaptation_low_clip = persisted
                         .exposure
                         .dynamic_adaptation_low_clip
                         .clamp(0.0, 1.0);
 
-                    imgui::Drag::<f32>::new(im_str!("Luminance histogram high clip"))
-                        .range(0.0..=1.0)
-                        .speed(0.001)
-                        .build(ui, &mut persisted.exposure.dynamic_adaptation_high_clip);
+                    Drag::new("Luminance histogram high clip").range(0.0, 1.0).speed(0.001).build(ui, &mut persisted.exposure.dynamic_adaptation_high_clip);
                     persisted.exposure.dynamic_adaptation_high_clip = persisted
                         .exposure
                         .dynamic_adaptation_high_clip
                         .clamp(0.0, 1.0);
 
-                    imgui::Drag::<f32>::new(im_str!("Contrast"))
-                        .range(1.0..=1.5)
-                        .speed(0.001)
-                        .build(ui, &mut persisted.exposure.contrast);
+                    Drag::new("Contrast").range(1.0, 1.5).speed(0.001).build(ui, &mut persisted.exposure.contrast);
 
-                    imgui::Drag::<f32>::new(im_str!("Emissive multiplier"))
-                        .range(0.0..=10.0)
-                        .speed(0.1)
-                        .build(ui, &mut persisted.light.emissive_multiplier);
+                    Drag::new("Emissive multiplier").range(0.0, 10.0).speed(0.1).build(ui, &mut persisted.light.emissive_multiplier);
 
                     ui.checkbox(
-                        im_str!("Enable emissive"),
+                        "Enable emissive",
                         &mut persisted.light.enable_emissive,
                     );
 
-                    imgui::Drag::<f32>::new(im_str!("Light intensity multiplier"))
-                        .range(0.0..=1000.0)
-                        .speed(1.0)
-                        .build(ui, &mut persisted.light.local_lights.multiplier);
+                    Drag::new("Light intensity multiplier").range(0.0, 1000.0).speed(1.0).build(ui, &mut persisted.light.local_lights.multiplier);
 
-                    imgui::Drag::<f32>::new(im_str!("Camera speed"))
-                        .range(0.0..=10.0)
-                        .speed(0.025)
-                        .build(ui, &mut persisted.movement.camera_speed);
+                    Drag::new("Camera speed").range(0.0, 10.0).speed(0.025).build(ui, &mut persisted.movement.camera_speed);
 
-                    imgui::Drag::<f32>::new(im_str!("Camera smoothness"))
-                        .range(0.0..=20.0)
-                        .speed(0.1)
-                        .build(ui, &mut persisted.movement.camera_smoothness);
+                    Drag::new("Camera smoothness").range(0.0, 20.0).speed(0.1).build(ui, &mut persisted.movement.camera_smoothness);
 
-                    imgui::Drag::<f32>::new(im_str!("Sun rotation smoothness"))
-                        .range(0.0..=20.0)
-                        .speed(0.1)
-                        .build(ui, &mut persisted.movement.sun_rotation_smoothness);
+                    Drag::new("Sun rotation smoothness").range(0.0, 20.0).speed(0.1).build(ui, &mut persisted.movement.sun_rotation_smoothness);
 
-                    imgui::Drag::<f32>::new(im_str!("Field of view"))
-                        .range(1.0..=120.0)
-                        .speed(0.25)
-                        .build(ui, &mut persisted.camera.vertical_fov);
+                    Drag::new("Field of view").range(1.0, 120.0).speed(0.25).build(ui, &mut persisted.camera.vertical_fov);
 
-                    imgui::Drag::<f32>::new(im_str!("Sun size"))
-                        .range(0.0..=10.0)
-                        .speed(0.02)
-                        .build(ui, &mut persisted.light.sun.size_multiplier);
+                    Drag::new("Sun size").range(0.0, 10.0).speed(0.02).build(ui, &mut persisted.light.sun.size_multiplier);
 
                     /*ui.checkbox(
-                        im_str!("Show world radiance cache"),
+                        "Object motion blur",
+                        &mut persisted.post_process.enable_object_motion_blur,
+                    );
+
+                    ui.checkbox(
+                        "TAA",
+                        &mut persisted.post_process.enable_taa,
+                    );
+
+                    ui.checkbox(
+                        "DOF",
+                        &mut persisted.post_process.enable_dof,
+                    );
+
+                    ui.checkbox(
+                        "DLSS",
+                        &mut persisted.post_process.enable_dlss,
+                    );
+
+                    if persisted.post_process.enable_dlss {
+                        Drag::new("DLSS ratio").range(0.1, 1.0).speed(0.01).build(ui, &mut persisted.post_process.dlss_ratio);
+                    }
+
+                    ui.checkbox(
+                        "FSR",
+                        &mut persisted.post_process.enable_fsr,
+                    );
+
+                    if persisted.post_process.enable_fsr {
+                        Drag::new("FSR ratio").range(0.1, 1.0).speed(0.01).build(ui, &mut persisted.post_process.fsr_ratio);
+                    }*/
+
+                    /*ui.checkbox(
+                        "SSGI",
+                        &mut persisted.light.enable_ssgi,
+                    );
+
+                    if persisted.light.enable_ssgi {
+                        Drag::new("SSGI multiplier").range(0.0, 10.0).speed(0.1).build(ui, &mut persisted.light.ssgi.multiplier);
+                    }
+
+                    ui.checkbox(
+                        "RTGI",
+                        &mut persisted.light.enable_rtgi,
+                    );
+
+                    if persisted.light.enable_rtgi {
+                        ui.checkbox(
+                            "RTGI enable",
+                            &mut persisted.light.rtgi.enable,
+                        );
+
+                        Drag::new("RTGI multiplier").range(0.0, 10.0).speed(0.1).build(ui, &mut persisted.light.rtgi.multiplier);
+
+                        ui.drag_float("RTGI rays per pixel", &mut persisted.light.rtgi.rays_per_pixel)
+                            .range(1, 16)
+                            .build();
+
+                        ui.drag_float("RTGI pixel offset", &mut persisted.light.rtgi.pixel_offset)
+                            .range(0.1..=5.0)
+                            .speed(0.1)
+                            .build();
+
+                        ui.drag_float("RTGI ray length", &mut persisted.light.rtgi.ray_length)
+                            .range(0.1..=20.0)
+                            .speed(0.1)
+                            .build();
+
+                        ui.drag_float("RTGI roughness bias", &mut persisted.light.rtgi.roughness_bias)
+                            .range(0.0..=0.5)
+                            .speed(0.01)
+                            .build();
+
+                        ui.checkbox(
+                            "RTGI show debug",
+                            &mut persisted.light.rtgi.show_debug,
+                        );
+                    }*/
+
+                    /*ui.checkbox(
+                        "Show world radiance cache",
                         &mut ctx.world_renderer.debug_show_wrc,
                     );*/
 
                     /*if ui.radio_button_bool(
-                        im_str!("Move sun"),
+                        "Move sun",
                         left_click_edit_mode == LeftClickEditMode::MoveSun,
                     ) {
                         left_click_edit_mode = LeftClickEditMode::MoveSun;
                     }
 
                     if ui.radio_button_bool(
-                        im_str!("Move local lights"),
+                        "Move local lights",
                         left_click_edit_mode == LeftClickEditMode::MoveLocalLights,
                     ) {
                         left_click_edit_mode = LeftClickEditMode::MoveLocalLights;
                     }
 
-                    imgui::Drag::<u32>::new(im_str!("Light count"))
-                        .range(0..=10)
+                    imgui::Drag::<u32>::new("Light count")
+                        .range(0, 10)
                         .build(ui, &mut state.lights.count);*/
 
                     ui.checkbox(
-                        im_str!("Scroll irradiance cache"),
+                        "Scroll irradiance cache",
                         &mut ctx.world_renderer.ircache.enable_scroll,
                     );
 
-                    imgui::Drag::<u32>::new(im_str!("GI spatial reuse passes"))
-                        .range(1..=3)
-                        .build(ui, &mut ctx.world_renderer.rtdgi.spatial_reuse_pass_count);
+                    Drag::new("GI spatial reuse passes").range(1, 3).build(ui, &mut ctx.world_renderer.rtdgi.spatial_reuse_pass_count);
 
                     ctx.world_renderer.rtdgi.spatial_reuse_pass_count = ctx
                         .world_renderer
@@ -403,39 +468,35 @@ impl RuntimeState {
                         .clamp(1, 3);
 
                     ui.checkbox(
-                        im_str!("Ray-traced reservoir visibility"),
+                        "Ray-traced reservoir visibility",
                         &mut ctx.world_renderer.rtdgi.use_raytraced_reservoir_visibility,
                     );
 
                     ui.checkbox(
-                        im_str!("Allow diffuse ray reuse for reflections"),
+                        "Allow diffuse ray reuse for reflections",
                         &mut ctx.world_renderer.rtr.reuse_rtdgi_rays,
                     );
 
                     #[cfg(feature = "dlss")]
                     {
-                        ui.checkbox(im_str!("Use DLSS"), &mut ctx.world_renderer.use_dlss);
+                        ui.checkbox("Use DLSS", &mut ctx.world_renderer.use_dlss);
                     }
                 }
 
-                if imgui::CollapsingHeader::new(im_str!("Scene"))
-                    .default_open(true)
-                    .build(ui)
+                if ui.collapsing_header("Scene", TreeNodeFlags::DEFAULT_OPEN)
                 {
                     if let Some(ibl) = persisted.scene.ibl.as_ref() {
-                        ui.text(im_str!("IBL: {:?}", ibl));
-                        if ui.button(im_str!("Unload"), [0.0, 0.0]) {
+                        ui.text(format!("IBL: {:?}", ibl));
+                        if ui.button("Unload") {
                             ctx.world_renderer.ibl.unload_image();
                             persisted.scene.ibl = None;
                         }
                     } else {
-                        ui.text(im_str!("Drag a sphere-mapped .hdr/.exr to load as IBL"));
+                        ui.text("Drag a sphere-mapped .hdr/.exr to load as IBL");
                     }
 
                     // --- Hierarchy ---
-                    if imgui::CollapsingHeader::new(im_str!("Hierarchy"))
-                        .default_open(true)
-                        .build(ui)
+                    if ui.collapsing_header("Hierarchy", TreeNodeFlags::DEFAULT_OPEN)
                     {
                         for (idx, elem) in persisted.scene.elements.iter().enumerate() {
                             let element_icon = Self::get_element_icon(elem);
@@ -447,20 +508,21 @@ impl RuntimeState {
                             let element_label = create_icon_label(element_icon, &element_name);
                             
                             if elem.is_compound && !elem.mesh_nodes.is_empty() {
-                                imgui::TreeNode::new(&im_str!("{}##{}", element_label, idx)).build(ui, || {
-                                    for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
-                                        let node_icon = Self::get_node_icon();
-                                        let node_name = if let Some(n) = &node.name {
-                                            n.clone()
-                                        } else {
-                                            format!("Node {}", nidx)
-                                        };
-                                        let node_label = create_icon_label(node_icon, &node_name);
-                                        ui.bullet_text(&im_str!("{}##{}-{}", node_label, idx, nidx));
-                                    }
-                                });
+                                ui.tree_node_config(format!("{}##{}", element_label, idx))
+                                    .build(|| {
+                                        for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
+                                            let node_icon = Self::get_node_icon();
+                                            let node_name = if let Some(n) = &node.name {
+                                                n.clone()
+                                            } else {
+                                                format!("Node {}", nidx)
+                                            };
+                                            let node_label = create_icon_label(node_icon, &node_name);
+                                            ui.bullet_text(format!("{}##{}-{}", node_label, idx, nidx));
+                                        }
+                                    });
                             } else {
-                                ui.bullet_text(&im_str!("{}##{}", element_label, idx));
+                                ui.bullet_text(format!("{}##{}", element_label, idx));
                             }
                         }
                     }
@@ -469,73 +531,57 @@ impl RuntimeState {
                     for (idx, elem) in persisted.scene.elements.iter_mut().enumerate() {
                         ui.dummy([0.0, 10.0]);
 
-                        let id_token = ui.push_id(idx as i32);
-                        ui.text(im_str!("{:?}", elem.source));
+                        let id_token = ui.push_id_usize(idx);
+                        ui.text(format!("{:?}", elem.source));
 
                         {
                             ui.set_next_item_width(200.0);
 
                             let mut scale = elem.transform.scale.x;
-                            imgui::Drag::<f32>::new(im_str!("scale"))
-                                .range(0.001..=1000.0)
-                                .speed(1.0)
-                                .flags(imgui::SliderFlags::LOGARITHMIC)
-                                .build(ui, &mut scale);
+                            Drag::new("scale").range(0.001, 1000.0).speed(1.0).build(ui, &mut scale);
                             if scale != elem.transform.scale.x {
                                 elem.transform.scale = Vec3::splat(scale);
                             }
                         }
 
-                        ui.same_line(0.0);
-                        if ui.button(im_str!("Delete"), [0.0, 0.0]) {
+                        ui.same_line();
+                        if ui.button("Delete") {
                             element_to_remove = Some(idx);
                         }
 
                         // Position
                         {
                             ui.set_next_item_width(100.0);
-                            imgui::Drag::<f32>::new(im_str!("x"))
-                                .speed(0.01)
-                                .build(ui, &mut elem.transform.position.x);
+                            Drag::new("x").speed(0.01).build(ui, &mut elem.transform.position.x);
 
-                            ui.same_line(0.0);
+                            ui.same_line();
 
                             ui.set_next_item_width(100.0);
-                            imgui::Drag::<f32>::new(im_str!("y"))
-                                .speed(0.01)
-                                .build(ui, &mut elem.transform.position.y);
+                            Drag::new("y").speed(0.01).build(ui, &mut elem.transform.position.y);
 
-                            ui.same_line(0.0);
+                            ui.same_line();
 
                             ui.set_next_item_width(100.0);
-                            imgui::Drag::<f32>::new(im_str!("z"))
-                                .speed(0.01)
-                                .build(ui, &mut elem.transform.position.z);
+                            Drag::new("z").speed(0.01).build(ui, &mut elem.transform.position.z);
                         }
 
                         // Rotation
                         {
                             ui.set_next_item_width(100.0);
-                            imgui::Drag::<f32>::new(im_str!("rx"))
-                                .speed(0.1)
-                                .build(ui, &mut elem.transform.rotation_euler_degrees.x);
+                            Drag::new("rx").speed(0.1).build(ui, &mut elem.transform.rotation_euler_degrees.x);
 
-                            ui.same_line(0.0);
+                            ui.same_line();
 
                             ui.set_next_item_width(100.0);
-                            imgui::Drag::<f32>::new(im_str!("ry"))
-                                .speed(0.1)
-                                .build(ui, &mut elem.transform.rotation_euler_degrees.y);
+                            Drag::new("ry").speed(0.1).build(ui, &mut elem.transform.rotation_euler_degrees.y);
 
-                            ui.same_line(0.0);
+                            ui.same_line();
 
                             ui.set_next_item_width(100.0);
-                            imgui::Drag::<f32>::new(im_str!("rz"))
-                                .speed(0.1)
-                                .build(ui, &mut elem.transform.rotation_euler_degrees.z);
+                            Drag::new("rz").speed(0.1).build(ui, &mut elem.transform.rotation_euler_degrees.z);
                         }
 
-                        id_token.pop(ui);
+                        id_token.pop();
                     }
 
                     if let Some(idx) = element_to_remove {
@@ -545,70 +591,62 @@ impl RuntimeState {
                 }
 
                 // Frustum Culling settings
-                if imgui::CollapsingHeader::new(im_str!("Frustum Culling"))
-                    .default_open(false)
-                    .build(ui)
+                if ui.collapsing_header("Frustum Culling", TreeNodeFlags::DEFAULT_OPEN)
                 {
                     ui.checkbox(
-                        im_str!("Enable frustum culling"),
+                        "Enable frustum culling",
                         &mut persisted.frustum_culling.enabled,
                     );
 
                     ui.checkbox(
-                        im_str!("Debug logging"),
+                        "Debug logging",
                         &mut persisted.frustum_culling.debug_logging,
                     );
 
                     ui.checkbox(
-                        im_str!("Use sphere culling (faster)"),
+                        "Use sphere culling (faster)",
                         &mut persisted.frustum_culling.use_sphere_culling,
                     );
 
                     // Culling method selection
-                    ui.text(im_str!("Culling Method:"));
+                    ui.text("Culling Method:");
                     let current_method = &mut persisted.frustum_culling.culling_method;
                     
                     let mut is_emissive = matches!(current_method, crate::culling::CullingMethod::EmissiveMultiplier);
                     let mut is_move_away = matches!(current_method, crate::culling::CullingMethod::MoveAway);
                     let mut is_scale_zero = matches!(current_method, crate::culling::CullingMethod::ScaleToZero);
                     
-                    if ui.checkbox(im_str!("Emissive Multiplier"), &mut is_emissive) && is_emissive {
+                    if ui.checkbox("Emissive Multiplier", &mut is_emissive) && is_emissive {
                         *current_method = crate::culling::CullingMethod::EmissiveMultiplier;
                     }
-                    if ui.checkbox(im_str!("Move Away"), &mut is_move_away) && is_move_away {
+                    if ui.checkbox("Move Away", &mut is_move_away) && is_move_away {
                         *current_method = crate::culling::CullingMethod::MoveAway;
                     }
-                    if ui.checkbox(im_str!("Scale to Zero"), &mut is_scale_zero) && is_scale_zero {
+                    if ui.checkbox("Scale to Zero", &mut is_scale_zero) && is_scale_zero {
                         *current_method = crate::culling::CullingMethod::ScaleToZero;
                     }
                     
                     // Show description for the selected method
                     ui.separator();
-                    ui.text(im_str!("Method Description:"));
+                    ui.text("Method Description:");
                     match current_method {
                         crate::culling::CullingMethod::EmissiveMultiplier => {
-                            ui.text_wrapped(im_str!("Makes objects invisible by setting emissive to 0. Least GPU-efficient."));
+                            ui.text_wrapped("Makes objects invisible by setting emissive to 0. Least GPU-efficient.");
                         }
                         crate::culling::CullingMethod::MoveAway => {
-                            ui.text_wrapped(im_str!("Moves objects far away. More GPU-efficient as objects are naturally culled by depth."));
+                            ui.text_wrapped("Moves objects far away. More GPU-efficient as objects are naturally culled by depth.");
                         }
                         crate::culling::CullingMethod::ScaleToZero => {
-                            ui.text_wrapped(im_str!("Scales objects to zero size. Very GPU-efficient for triangle culling."));
+                            ui.text_wrapped("Scales objects to zero size. Very GPU-efficient for triangle culling.");
                         }
                     }
 
-                    imgui::Drag::<f32>::new(im_str!("Default object size"))
-                        .range(0.1..=10.0)
-                        .speed(0.1)
-                        .build(ui, &mut persisted.frustum_culling.default_object_size);
+                    Drag::new("Default object size").range(0.1, 10.0).speed(0.1).build(ui, &mut persisted.frustum_culling.default_object_size);
 
-                    imgui::Drag::<u32>::new(im_str!("Log interval (frames)"))
-                        .range(30..=600)
-                        .speed(10.0)
-                        .build(ui, &mut persisted.frustum_culling.log_interval_frames);
+                    Drag::new("Log interval (frames)").range(30, 600).speed(10.0).build(ui, &mut persisted.frustum_culling.log_interval_frames);
 
                     // Display culling statistics
-                    ui.text(im_str!("Culling Stats:"));
+                    ui.text("Culling Stats:");
                     
                     let total_elements = persisted.scene.elements.len();
                     let total_nodes: usize = persisted.scene.elements.iter()
@@ -623,7 +661,7 @@ impl RuntimeState {
                     ui.text(format!("GLTF compound objects: {}", compound_elements));
                     
                     if persisted.frustum_culling.enabled {
-                        ui.text_colored([0.0, 1.0, 0.0, 1.0], im_str!("Status: Enabled"));
+                        ui.text_colored([0.0, 1.0, 0.0, 1.0], "Status: Enabled");
                         ui.text(format!(
                             "Method: {}",
                             if persisted.frustum_culling.use_sphere_culling {
@@ -633,90 +671,88 @@ impl RuntimeState {
                             }
                         ));
                     } else {
-                        ui.text_colored([1.0, 0.0, 0.0, 1.0], im_str!("Status: Disabled"));
+                        ui.text_colored([1.0, 0.0, 0.0, 1.0], "Status: Disabled");
                     }
                 }
 
                 // Occlusion Culling settings
-                if imgui::CollapsingHeader::new(im_str!("Occlusion Culling"))
+                if imgui::CollapsingHeader::new("Occlusion Culling")
                     .default_open(false)
                     .build(ui)
                 {
                     ui.checkbox(
-                        im_str!("Enable occlusion culling"),
+                        "Enable occlusion culling",
                         &mut persisted.occlusion_culling.enabled,
                     );
 
                     ui.checkbox(
-                        im_str!("Debug visualization"),
+                        "Debug visualization",
                         &mut persisted.occlusion_culling.debug_visualize,
                     );
 
-                    imgui::Drag::<u32>::new(im_str!("Depth buffer resolution"))
-                        .range(64..=512)
+                    Drag::new("Depth buffer resolution")
+                        .range(64, 512)
                         .speed(1.0)
                         .build(ui, &mut persisted.occlusion_culling.depth_buffer_resolution);
 
-                    imgui::Drag::<f32>::new(im_str!("Depth bias"))
-                        .range(0.0..=0.1)
+                    Drag::new("Depth bias")
+                        .range(0.0, 0.1)
                         .speed(0.001)
                         .build(ui, &mut persisted.occlusion_culling.depth_bias);
 
-                    imgui::Drag::<u32>::new(im_str!("Sample count per object"))
-                        .range(1..=8)
+                    Drag::new("Sample count per object")
+                        .range(1, 8)
                         .speed(1.0)
                         .build(ui, &mut persisted.occlusion_culling.sample_count);
 
-                    imgui::Drag::<f32>::new(im_str!("Max test distance"))
-                        .range(10.0..=5000.0)
+                    Drag::new("Max test distance")
+                        .range(10.0, 5000.0)
                         .speed(10.0)
                         .build(ui, &mut persisted.occlusion_culling.max_test_distance);
 
                     ui.separator();
-                    ui.text(im_str!("Occlusion Culling Info:"));
-                    ui.text_wrapped(im_str!("Hides objects that are blocked by other objects closer to the camera. Works in combination with frustum culling for maximum efficiency."));
+                    ui.text("Occlusion Culling Info:");
+                    ui.text_wrapped("Hides objects that are blocked by other objects closer to the camera. Works in combination with frustum culling for maximum efficiency.");
                     
                     if persisted.occlusion_culling.enabled {
-                        ui.text_colored([0.0, 1.0, 0.0, 1.0], im_str!("Status: Enabled"));
+                        ui.text_colored([0.0, 1.0, 0.0, 1.0], "Status: Enabled");
                         ui.text(format!("Depth resolution: {}x{}", 
                             persisted.occlusion_culling.depth_buffer_resolution,
                             persisted.occlusion_culling.depth_buffer_resolution));
                     } else {
-                        ui.text_colored([1.0, 0.0, 0.0, 1.0], im_str!("Status: Disabled"));
+                        ui.text_colored([1.0, 0.0, 0.0, 1.0], "Status: Disabled");
                     }
                 }
 
                 // Triangle Culling settings
-                if imgui::CollapsingHeader::new(im_str!("Triangle Culling"))
+                if imgui::CollapsingHeader::new("Triangle Culling")
                     .default_open(false)
                     .build(ui)
                 {
                     ui.checkbox(
-                        im_str!("Enable triangle culling"),
+                        "Enable triangle culling",
                         &mut persisted.triangle_culling.enabled,
                     );
-                    ui.same_line(0.0);
-                    ui.text_colored([0.7, 0.7, 0.7, 1.0], im_str!("Per-triangle visibility tests"));
+                    ui.same_line();
+                    ui.text_colored([0.7, 0.7, 0.7, 1.0], "Per-triangle visibility tests");
 
                     if persisted.triangle_culling.enabled {
                         ui.separator();
                         
                         ui.checkbox(
-                            im_str!("Debug logging"),
+                            "Debug logging",
                             &mut persisted.triangle_culling.debug_logging,
                         );
                         
-                        imgui::Drag::<u32>::new(im_str!("Log interval (frames)"))
-                            .range(1..=300)
-                            .speed(1.0)
-                            .build(ui, &mut persisted.triangle_culling.log_interval_frames);
-
-                        ui.separator();
-                        ui.text(im_str!("Culling Methods:"));
+                            Drag::new("Log interval (frames)")
+                                .range(1, 300)
+                                .speed(1.0)
+                                .build(ui, &mut persisted.triangle_culling.log_interval_frames);                        ui.separator();
+                        ui.text("Culling Methods:");
 
                         // Back-face culling checkbox
                         let mut has_backface = persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::BackFace);
-                        if ui.checkbox(im_str!("Back-face culling"), &mut has_backface) {
+                        if ui.checkbox("Back-face culling", &mut has_backface) {
                             if has_backface {
                                 if !persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::BackFace) {
                                     persisted.triangle_culling.methods.push(crate::math::PrimitiveCullingMethod::BackFace);
@@ -725,12 +761,12 @@ impl RuntimeState {
                                 persisted.triangle_culling.methods.retain(|m| m != &crate::math::PrimitiveCullingMethod::BackFace);
                             }
                         }
-                        ui.same_line(0.0);
-                        ui.text_colored([0.7, 0.7, 0.7, 1.0], im_str!("Hide faces pointing away"));
+                        ui.same_line();
+                        ui.text_colored([0.7, 0.7, 0.7, 1.0], "Hide faces pointing away");
 
                         // Small triangle culling checkbox
                         let mut has_small = persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::SmallTriangle);
-                        if ui.checkbox(im_str!("Small triangle culling"), &mut has_small) {
+                        if ui.checkbox("Small triangle culling", &mut has_small) {
                             if has_small {
                                 if !persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::SmallTriangle) {
                                     persisted.triangle_culling.methods.push(crate::math::PrimitiveCullingMethod::SmallTriangle);
@@ -739,41 +775,41 @@ impl RuntimeState {
                                 persisted.triangle_culling.methods.retain(|m| m != &crate::math::PrimitiveCullingMethod::SmallTriangle);
                             }
                         }
-                        ui.same_line(0.0);
-                        ui.text_colored([0.7, 0.7, 0.7, 1.0], im_str!("Hide very small triangles"));
+                        ui.same_line();
+                        ui.text_colored([0.7, 0.7, 0.7, 1.0], "Hide very small triangles");
 
                         ui.separator();
-                        ui.text(im_str!("Parameters:"));
+                        ui.text("Parameters:");
 
-                        imgui::Drag::<f32>::new(im_str!("Min triangle area (pixels)"))
-                            .range(0.1..=100.0)
+                        Drag::new("Min triangle area (pixels)")
+                            .range(0.1, 100.0)
                             .speed(0.1)
                             .build(ui, &mut persisted.triangle_culling.min_triangle_area);
 
-                        imgui::Drag::<f32>::new(im_str!("Back-face epsilon"))
-                            .range(0.0..=0.1)
+                        Drag::new("Back-face epsilon")
+                            .range(0.0, 0.1)
                             .speed(0.001)
                             .build(ui, &mut persisted.triangle_culling.backface_epsilon);
 
-                        imgui::Drag::<f32>::new(im_str!("Max distance"))
-                            .range(10.0..=5000.0)
+                        Drag::new("Max distance")
+                            .range(10.0, 5000.0)
                             .speed(10.0)
                             .build(ui, &mut persisted.triangle_culling.max_distance);
                     }
 
                     ui.separator();
-                    ui.text(im_str!("Triangle Culling Info:"));
-                    ui.text_wrapped(im_str!("Culls individual triangles based on various criteria. Works at the finest level of detail, complementing object-level frustum and occlusion culling."));
+                    ui.text("Triangle Culling Info:");
+                    ui.text_wrapped("Culls individual triangles based on various criteria. Works at the finest level of detail, complementing object-level frustum and occlusion culling.");
                     
                     if persisted.triangle_culling.enabled {
-                        ui.text_colored([0.0, 1.0, 0.0, 1.0], im_str!("Status: Enabled"));
+                        ui.text_colored([0.0, 1.0, 0.0, 1.0], "Status: Enabled");
                         ui.text(format!("Active methods: {}", persisted.triangle_culling.methods.len()));
                         
                         // Show triangle culling statistics
                         let triangle_stats = self.get_triangle_culling_statistics();
                         if triangle_stats.triangles_tested > 0 {
                             ui.separator();
-                            ui.text(im_str!("Triangle Statistics:"));
+                            ui.text("Triangle Statistics:");
                             ui.text(format!("Triangles tested: {}", triangle_stats.triangles_tested));
                             ui.text(format!("Triangles rendered: {}", triangle_stats.triangles_rendered));
                             ui.text(format!("Culling efficiency: {:.1}%", triangle_stats.culling_efficiency()));
@@ -786,19 +822,19 @@ impl RuntimeState {
                             }
                         }
                     } else {
-                        ui.text_colored([1.0, 0.0, 0.0, 1.0], im_str!("Status: Disabled"));
+                        ui.text_colored([1.0, 0.0, 0.0, 1.0], "Status: Disabled");
                     }
                 }
 
                 // Resource Streaming Section
-                if imgui::CollapsingHeader::new(im_str!("Resource Streaming"))
+                if imgui::CollapsingHeader::new("Resource Streaming")
                     .default_open(false)
                     .build(ui)
                 {
                     self.streaming_integration.render_gui(ui);
                 }
 
-                if imgui::CollapsingHeader::new(im_str!("Overrides"))
+                if imgui::CollapsingHeader::new("Overrides")
                     .default_open(false)
                     .build(ui)
                 {
@@ -806,7 +842,7 @@ impl RuntimeState {
                         ($flag:path, $name:literal) => {
                             let mut is_set: bool =
                                 ctx.world_renderer.render_overrides.has_flag($flag);
-                            ui.checkbox(im_str!($name), &mut is_set);
+                            ui.checkbox($name, &mut is_set);
                             ctx.world_renderer.render_overrides.set_flag($flag, is_set);
                         };
                     }
@@ -822,8 +858,8 @@ impl RuntimeState {
                     );
                     do_flag!(RenderOverrideFlags::NO_METAL, "No metal");
 
-                    imgui::Drag::<f32>::new(im_str!("Roughness scale"))
-                        .range(0.0..=4.0)
+                    Drag::new("Roughness scale")
+                        .range(0.0, 4.0)
                         .speed(0.001)
                         .build(
                             ui,
@@ -831,33 +867,33 @@ impl RuntimeState {
                         );
                 }
 
-                if imgui::CollapsingHeader::new(im_str!("Sequence"))
+                if imgui::CollapsingHeader::new("Sequence")
                     .default_open(false)
                     .build(ui)
                 {
-                    if ui.button(im_str!("Add key"), [0.0, 0.0]) {
+                    if ui.button("Add key") {
                         self.add_sequence_keyframe(persisted);
                     }
 
-                    ui.same_line(0.0);
+                    ui.same_line();
                     if self.is_sequence_playing() {
-                        if ui.button(im_str!("Stop"), [0.0, 0.0]) {
+                        if ui.button("Stop") {
                             self.stop_sequence();
                         }
-                    } else if ui.button(im_str!("Play"), [0.0, 0.0]) {
+                    } else if ui.button("Play") {
                         self.play_sequence(persisted);
                     }
 
-                    ui.same_line(0.0);
+                    ui.same_line();
                     ui.set_next_item_width(60.0);
-                    imgui::Drag::<f32>::new(im_str!("Speed"))
-                        .range(0.0..=4.0)
+                    Drag::new("Speed")
+                        .range(0.0, 4.0)
                         .speed(0.01)
                         .build(ui, &mut self.sequence_playback_speed);
 
                     if self.active_camera_key.is_some() {
-                        ui.same_line(0.0);
-                        if ui.button(im_str!("Deselect key"), [0.0, 0.0]) {
+                        ui.same_line();
+                        if ui.button("Deselect key") {
                             self.active_camera_key = None;
                         }
                     }
@@ -874,42 +910,41 @@ impl RuntimeState {
                         let active = Some(i) == self.active_camera_key;
 
                         let label = if active {
-                            im_str!("-> {}:", i)
+                            format!("-> {}:", i)
                         } else {
-                            im_str!("{}:", i)
+                            format!("{}:", i)
                         };
 
-                        if ui.button(&label, [0.0, 0.0]) {
+                        if ui.button(&label) {
                             cmd = Cmd::JumpToKey(i);
                         }
 
-                        ui.same_line(0.0);
+                        ui.same_line();
                         ui.set_next_item_width(60.0);
-                        imgui::InputFloat::new(ui, &im_str!("duration##{}", i), &mut item.duration)
-                            .build();
+                        ui.input_float(format!("duration##{}", i), &mut item.duration);
 
-                        ui.same_line(0.0);
+                        ui.same_line();
                         ui.checkbox(
-                            &im_str!("Pos##{}", i),
+                            &format!("Pos##{}", i),
                             &mut item.value.camera_position.is_some,
                         );
 
-                        ui.same_line(0.0);
+                        ui.same_line();
                         ui.checkbox(
-                            &im_str!("Dir##{}", i),
+                            &format!("Dir##{}", i),
                             &mut item.value.camera_direction.is_some,
                         );
 
-                        ui.same_line(0.0);
-                        ui.checkbox(&im_str!("Sun##{}", i), &mut item.value.towards_sun.is_some);
+                        ui.same_line();
+                        ui.checkbox(&format!("Sun##{}", i), &mut item.value.towards_sun.is_some);
 
-                        ui.same_line(0.0);
-                        if ui.button(&im_str!("Delete##{}", i), [0.0, 0.0]) {
+                        ui.same_line();
+                        if ui.button(&format!("Delete##{}", i)) {
                             cmd = Cmd::DeleteKey(i);
                         }
 
-                        ui.same_line(0.0);
-                        if ui.button(&im_str!("Replace##{}:", i), [0.0, 0.0]) {
+                        ui.same_line();
+                        if ui.button(&format!("Replace##{}:", i)) {
                             cmd = Cmd::ReplaceKey(i);
                         }
                     });
@@ -923,106 +958,63 @@ impl RuntimeState {
                 }
 
                 if self.ui_windows.show_debug {
-                    if imgui::CollapsingHeader::new(im_str!("Debug"))
+                    if imgui::CollapsingHeader::new("Debug")
                         .default_open(false)
                         .build(ui)
                     {
                         if ui.radio_button_bool(
-                            im_str!("Scene geometry"),
+                            "Scene geometry",
                             ctx.world_renderer.debug_mode == RenderDebugMode::None,
                         ) {
                             ctx.world_renderer.debug_mode = RenderDebugMode::None;
                         }
 
                         /*if ui.radio_button_bool(
-                            im_str!("World radiance cache"),
+                            "World radiance cache",
                             ctx.world_renderer.debug_mode == RenderDebugMode::WorldRadianceCache,
                         ) {
                             ctx.world_renderer.debug_mode = RenderDebugMode::WorldRadianceCache;
                         }*/
 
-                        imgui::ComboBox::new(im_str!("Shading")).build_simple_string(
-                            ui,
+                        /*ui.combo_box_simple_string(
+                            "Shading",
                             &mut ctx.world_renderer.debug_shading_mode,
                             &[
-                                im_str!("Default"),
-                                im_str!("No base color"),
-                                im_str!("Diffuse GI"),
-                                im_str!("Reflections"),
-                                im_str!("RTX OFF"),
-                                im_str!("Irradiance cache"),
+                                "Default",
+                                "No base color",
+                                "Diffuse GI",
+                                "Reflections",
+                                "RTX OFF",
+                                "Irradiance cache",
                             ],
-                        );
+                        );*/
 
-                        imgui::Drag::<u32>::new(im_str!("Max FPS"))
-                            .range(1..=MAX_FPS_LIMIT)
-                            .build(ui, &mut self.max_fps);
+                        Drag::new("Max FPS").range(1, MAX_FPS_LIMIT).build(ui, &mut self.max_fps);
 
-                        ui.checkbox(im_str!("Allow pass overlap"), unsafe {
+                        ui.checkbox("Allow pass overlap", unsafe {
                             &mut kajiya::rg::RG_ALLOW_PASS_OVERLAP
                         });
                     }
                 }
 
-                if imgui::CollapsingHeader::new(im_str!("GPU passes"))
+                if imgui::CollapsingHeader::new("GPU passes")
                     .default_open(true)
                     .build(ui)
                 {
                     ui.text(format!("CPU frame time: {:.3}ms", ctx.dt_filtered * 1000.0));
 
-                    if let Some(report) = gpu_profiler::profiler().last_report() {
-                        let ordered_scopes = report.scopes.as_slice();
-                        let gpu_time_ms: f64 =
-                            ordered_scopes.iter().map(|scope| scope.duration.ms()).sum();
-
-                        ui.text(format!("GPU frame time: {:.3}ms", gpu_time_ms));
-
-                        for (scope_index, scope) in ordered_scopes.iter().enumerate() {
-                            if scope.name == "debug" || scope.name.starts_with('_') {
-                                continue;
-                            }
-
-                            let render_debug_hook = kajiya::rg::RenderDebugHook {
-                                name: scope.name.clone(),
-                                id: scope_index as u64,
-                            };
-
-                            let style = self.locked_rg_debug_hook.as_ref().and_then(|hook| {
-                                if hook.render_debug_hook == render_debug_hook {
-                                    Some(ui.push_style_color(
-                                        imgui::StyleColor::Text,
-                                        [1.0, 1.0, 0.1, 1.0],
-                                    ))
-                                } else {
-                                    None
-                                }
-                            });
-
-                            ui.text(format!("{}: {:.3}ms", scope.name, scope.duration.ms()));
-
-                            if let Some(style) = style {
-                                style.pop(ui);
-                            }
-
-                            if ui.is_item_hovered() {
-                                ctx.world_renderer.rg_debug_hook =
-                                    Some(kajiya::rg::GraphDebugHook { render_debug_hook });
-
-                                if ui.is_item_clicked(imgui::MouseButton::Left) {
-                                    if self.locked_rg_debug_hook == ctx.world_renderer.rg_debug_hook
-                                    {
-                                        self.locked_rg_debug_hook = None;
-                                    } else {
-                                        self.locked_rg_debug_hook =
-                                            ctx.world_renderer.rg_debug_hook.clone();
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    // GPU profiler is not available in this build
+                    ui.text("GPU profiling disabled");
                 }
                 } // Close the if self.show_gui block
-            });
+                });
+                log::debug!("ImGui frame callback completed");
+            } else {
+                log::warn!("Failed to take ImGui context - ctx.imgui was None!");
+            }
+        } else {
+            log::debug!("GUI skipped: show_gui={}, is_compiling={}, should_show_gui={}", 
+                self.show_gui, is_compiling, should_show_gui);
         }
     }
 
@@ -1192,8 +1184,8 @@ impl RuntimeState {
                     let window_width = 500.0;
                     let window_height = 200.0;
                     
-                    // Use window builder pattern for imgui 0.7
-                    imgui::Window::new(im_str!("Compiling Shaders"))
+                    // Use window builder pattern for imgui 0.11
+                    ui.window("Compiling Shaders")
                         .position(
                             [
                                 (display_width - window_width) * 0.5,
@@ -1205,7 +1197,7 @@ impl RuntimeState {
                         .resizable(false)
                         .movable(false)
                         .collapsible(false)
-                        .build(ui, || {
+                        .build(|| {
                             ui.text("Initializing rendering engine...");
                             ui.spacing();
 
@@ -1216,9 +1208,9 @@ impl RuntimeState {
                                 0.0 // Indeterminate progress when no shaders registered yet
                             };
                             
-                            imgui::ProgressBar::new(progress_fraction)
+                            ProgressBar::new(progress_fraction)
                                 .size([450.0, 20.0])
-                                .overlay_text(&im_str!("{:.1}%", progress.progress_percentage()))
+                                .overlay_text(format!("{:.1}%", progress.progress_percentage()))
                                 .build(ui);
 
                             ui.spacing();

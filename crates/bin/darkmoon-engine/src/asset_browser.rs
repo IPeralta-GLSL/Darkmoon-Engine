@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use imgui::{Ui, im_str, ImString};
+use imgui::{Ui, ImString};
 
 use darkmoon_icons::*;
 
@@ -30,11 +30,11 @@ impl AssetBrowser {
         let current_dir = self.current_dir.clone();
         let mut action = AssetAction::None;
         
-        imgui::Window::new(im_str!("Assets Browser"))
+        ui.window("Assets Browser")
             .opened(&mut self.open)
             .resizable(true)
             .size([400.0, 500.0], imgui::Condition::FirstUseEver)
-            .build(ui, || {
+            .build(|| {
                 Self::show_dir_recursive(ui, &current_dir, &mut action);
             });
         
@@ -50,9 +50,9 @@ impl AssetBrowser {
                 
                 if path.is_dir() {
                     let folder_label = ImString::from(get_folder_icon_label(file_name.to_str(), false));
-                    imgui::TreeNode::new(&folder_label)
+                    ui.tree_node_config(&folder_label)
                         .default_open(false)
-                        .build(ui, || {
+                        .build(|| {
                             Self::show_dir_recursive(ui, &path, action);
                         });
                 } else {
@@ -63,7 +63,7 @@ impl AssetBrowser {
                     match extension {
                         "dmoon" => {
                             let scene_label = ImString::from(get_file_icon_label(extension, file_name.to_str()));
-                            if imgui::Selectable::new(&scene_label).build(ui) {
+                            if ui.selectable(&scene_label) {
                                 *action = AssetAction::LoadScene(path.clone());
                             }
                         }
@@ -90,7 +90,7 @@ impl AssetBrowser {
                 }
             }
         } else {
-            ui.text(im_str!("No se pudo leer la carpeta de assets."));
+            ui.text("No se pudo leer la carpeta de assets.");
         }
     }
 }

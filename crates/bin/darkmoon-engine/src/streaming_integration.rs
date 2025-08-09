@@ -148,7 +148,7 @@ impl StreamingIntegration {
             
             imgui::ProgressBar::new(memory_pct / 100.0)
                 .size([300.0, 20.0])
-                .overlay_text(&imgui::im_str!("{:.1}%", memory_pct))
+                .overlay_text(format!("{:.1}%", memory_pct))
                 .build(ui);
             
             // Cache Statistics
@@ -161,7 +161,7 @@ impl StreamingIntegration {
             
             imgui::ProgressBar::new(stats.cache_hit_rate)
                 .size([300.0, 20.0])
-                .overlay_text(&imgui::im_str!("{:.1}%", hit_rate_pct))
+                .overlay_text(format!("{:.1}%", hit_rate_pct))
                 .build(ui);
             
             // Controls
@@ -169,15 +169,15 @@ impl StreamingIntegration {
             ui.text("Controls");
             ui.separator();
             
-            if ui.button(imgui::im_str!("Clear Cache"), [120.0, 0.0]) {
+            if ui.button("Clear Cache") {
                 if let Some(ref manager) = self.manager {
                     manager.clear_cache();
                     info!("Cache cleared manually");
                 }
             }
             
-            ui.same_line(0.0);
-            if ui.button(imgui::im_str!("Force GC"), [120.0, 0.0]) {
+            ui.same_line();
+            if ui.button("Force GC") {
                 if let Some(ref manager) = self.manager {
                     manager.force_garbage_collection();
                     info!("Garbage collection executed manually");
@@ -189,7 +189,7 @@ impl StreamingIntegration {
                     ui.text("Resource streaming system not initialized");
                     ui.spacing();
                     
-                    if ui.button(imgui::im_str!("Initialize Streaming"), [200.0, 0.0]) {
+                    if ui.button("Initialize Streaming") {
                         debug!("Initialize button pressed from GUI");
                         initialize_clicked = true;
                     }
@@ -200,7 +200,7 @@ impl StreamingIntegration {
                     
                     imgui::ProgressBar::new(-1.0) // Indeterminate progress
                         .size([200.0, 20.0])
-                        .overlay_text(&imgui::im_str!("Initializing..."))
+                        .overlay_text(&"Loading...")
                         .build(ui);
                 }
                 StreamingInitState::Initialized => {
@@ -210,10 +210,10 @@ impl StreamingIntegration {
                 StreamingInitState::Failed(error) => {
                     ui.text_colored([1.0, 0.3, 0.3, 1.0], "Initialization error:");
                     ui.spacing();
-                    ui.text_wrapped(&imgui::im_str!("{}", error));
+                    ui.text_wrapped(format!("{}", error));
                     ui.spacing();
                     
-                    if ui.button(imgui::im_str!("Retry"), [100.0, 0.0]) {
+                    if ui.button("Retry") {
                         self.init_state = StreamingInitState::NotInitialized;
                         self.init_requested = false;
                     }

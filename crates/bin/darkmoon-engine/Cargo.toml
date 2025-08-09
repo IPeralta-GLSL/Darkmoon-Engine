@@ -16,7 +16,8 @@ darkmoon-icons = { path = "../../lib/darkmoon-icons" }
 anyhow = "1.0"
 dolly = "=0.4.0"
 gltf = { git = "https://github.com/gltf-rs/gltf.git", rev = "b9c04be69363b8353d58f99aa1008ead93020851", features = ["KHR_texture_transform", "KHR_materials_pbrSpecularGlossiness"] }
-imgui = "0.7"
+glam = { version = "0.22", features = ["serde"] }
+imgui = { version = "0.11", features = ["docking", "tables-api"] }
 log = "0.4.22"
 ron = "0.6.2"
 serde = { version = "1.0", features = ["derive"] }

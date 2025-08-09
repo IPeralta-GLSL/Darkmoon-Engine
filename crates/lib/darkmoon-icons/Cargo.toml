@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-imgui = "0.7"
+imgui = { version = "0.11", features = ["docking", "tables-api"] }

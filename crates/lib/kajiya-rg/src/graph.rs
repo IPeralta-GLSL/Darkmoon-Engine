@@ -938,10 +938,17 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
         }
 
         let vk_scope = {
-            let query_id = kajiya_backend::gpu_profiler::profiler().create_scope(&pass.name);
-            params
-                .profiler_data
-                .begin_scope(&params.device.raw, cb.raw, query_id)
+            #[cfg(feature = "gpu-profiler-enabled")]
+            {
+                let query_id = kajiya_backend::gpu_profiler::profiler().create_scope(&pass.name);
+                params
+                    .profiler_data
+                    .begin_scope(&params.device.raw, cb.raw, query_id)
+            }
+            #[cfg(not(feature = "gpu-profiler-enabled"))]
+            {
+                ()
+            }
         };
 
         {
@@ -994,9 +1001,16 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
 
         let params = &resource_registry.execution_params;
 
-        params
-            .profiler_data
-            .end_scope(&params.device.raw, cb.raw, vk_scope);
+        #[cfg(feature = "gpu-profiler-enabled")]
+        {
+            params
+                .profiler_data
+                .end_scope(&params.device.raw, cb.raw, vk_scope);
+        }
+        #[cfg(not(feature = "gpu-profiler-enabled"))]
+        {
+            let _ = vk_scope; // Suppress unused variable warning
+        }
 
         if let Some(debug_utils) = params.device.debug_utils() {
             unsafe {

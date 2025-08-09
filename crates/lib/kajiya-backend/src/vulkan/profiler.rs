@@ -1,17 +1,22 @@
+#[cfg(feature = "gpu-profiler-enabled")]
 use ash::vk;
+#[cfg(feature = "gpu-profiler-enabled")]
 use gpu_profiler::backend::ash::VulkanProfilerFrame;
 
+#[cfg(feature = "gpu-profiler-enabled")]
 pub struct ProfilerBuffer {
     buffer: vk::Buffer,
     allocation: gpu_allocator::SubAllocation,
 }
 
+#[cfg(feature = "gpu-profiler-enabled")]
 pub struct ProfilerBackend<'dev, 'alloc> {
     device: &'dev ash::Device,
     allocator: &'alloc mut gpu_allocator::VulkanAllocator,
     timestamp_period: f32,
 }
 
+#[cfg(feature = "gpu-profiler-enabled")]
 impl<'device, 'alloc> ProfilerBackend<'device, 'alloc> {
     pub fn new(
         device: &'device ash::Device,
@@ -26,6 +31,7 @@ impl<'device, 'alloc> ProfilerBackend<'device, 'alloc> {
     }
 }
 
+#[cfg(feature = "gpu-profiler-enabled")]
 impl<'dev, 'alloc> gpu_profiler::backend::ash::VulkanBackend for ProfilerBackend<'dev, 'alloc> {
     type Buffer = ProfilerBuffer;
 
@@ -71,6 +77,7 @@ impl<'dev, 'alloc> gpu_profiler::backend::ash::VulkanBackend for ProfilerBackend
     }
 }
 
+#[cfg(feature = "gpu-profiler-enabled")]
 impl gpu_profiler::backend::ash::VulkanBuffer for ProfilerBuffer {
     fn mapped_slice(&self) -> &[u8] {
         self.allocation.mapped_slice().unwrap()
@@ -81,4 +88,29 @@ impl gpu_profiler::backend::ash::VulkanBuffer for ProfilerBuffer {
     }
 }
 
+#[cfg(feature = "gpu-profiler-enabled")]
 pub type VkProfilerData = VulkanProfilerFrame<ProfilerBuffer>;
+
+#[cfg(not(feature = "gpu-profiler-enabled"))]
+pub type VkProfilerData = ();
+
+#[cfg(not(feature = "gpu-profiler-enabled"))]
+pub struct ProfilerBuffer;
+
+#[cfg(not(feature = "gpu-profiler-enabled"))]
+pub struct ProfilerBackend<'dev, 'alloc> {
+    _phantom: std::marker::PhantomData<(&'dev (), &'alloc ())>,
+}
+
+#[cfg(not(feature = "gpu-profiler-enabled"))]
+impl<'device, 'alloc> ProfilerBackend<'device, 'alloc> {
+    pub fn new(
+        _device: &'device ash::Device,
+        _allocator: &'alloc mut gpu_allocator::VulkanAllocator,
+        _timestamp_period: f32,
+    ) -> ProfilerBackend<'device, 'alloc> {
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}

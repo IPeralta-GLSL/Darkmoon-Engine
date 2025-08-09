@@ -269,14 +269,14 @@ impl RuntimeState {
 
         // When starting camera rotation, hide the mouse cursor, and capture it to the window.
         if (self.mouse.buttons_pressed & (1 << 2)) != 0 {
-            let _ = ctx.window.set_cursor_grab(true);
+            let _ = ctx.window.set_cursor_grab(winit::window::CursorGrabMode::Confined);
             self.grab_cursor_pos = self.mouse.physical_position;
             ctx.window.set_cursor_visible(false);
         }
 
         // When ending camera rotation, release the cursor.
         if (self.mouse.buttons_released & (1 << 2)) != 0 {
-            let _ = ctx.window.set_cursor_grab(false);
+            let _ = ctx.window.set_cursor_grab(winit::window::CursorGrabMode::None);
             ctx.window.set_cursor_visible(true);
         }
 

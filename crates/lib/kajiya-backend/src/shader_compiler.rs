@@ -2,7 +2,7 @@ use crate::file::LoadFile;
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::Bytes;
 use relative_path::RelativePathBuf;
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, fs};
 use turbosloth::*;
 
 pub struct CompiledShader {
@@ -111,15 +111,18 @@ struct ShaderIncludeProvider {
     ctx: RunContext,
 }
 
+// TODO: Temporarily disable shader compilation due to API changes in shader-prepper
+// This should be fixed to restore full functionality
+/*
 impl shader_prepper::IncludeProvider for ShaderIncludeProvider {
     type IncludeContext = String;
 
-    fn get_include(
-        &mut self,
-        path: &str,
-        parent_file: &Self::IncludeContext,
+    fn resolve_path(
+        &self, 
+        path: &str, 
+        parent_file: &Self::IncludeContext
     ) -> std::result::Result<
-        (String, Self::IncludeContext),
+        shader_prepper::ResolvedInclude<Self::IncludeContext>,
         shader_prepper::BoxedIncludeProviderError,
     > {
         let resolved_path = if let Some('/') = path.chars().next() {
@@ -130,14 +133,91 @@ impl shader_prepper::IncludeProvider for ShaderIncludeProvider {
             folder.join(path).as_str().to_string()
         };
 
-        let blob: Arc<Bytes> = smol::block_on(
-            crate::file::LoadFile::new(&resolved_path)
-                .with_context(|| format!("Failed loading shader include {}", path))?
-                .into_lazy()
-                .eval(&self.ctx),
-        )?;
+        // Crea un objeto temporal para satisfacer la API
+        use std::path::Path;
+        let temp_path = Path::new(&resolved_path);
+        
+        Ok(shader_prepper::ResolvedInclude {
+            resolved_path: temp_path.into(),
+            context: resolved_path,
+        })
+    }
 
-        Ok((String::from_utf8(blob.to_vec())?, resolved_path))
+    fn get_include(
+        &mut self,
+        _resolved_path: &shader_prepper::ResolvedIncludePath,
+    ) -> std::result::Result<
+        String,
+        shader_prepper::BoxedIncludeProviderError,
+    > {
+        // Como no podemos obtener el path del ResolvedIncludePath,
+        // vamos a manejar esto de manera diferente
+        // Por ahora retornamos un string vacío como placeholder
+        Ok(String::new())
+    }
+}
+*/
+
+// Implementación real del sistema de includes
+impl shader_prepper::IncludeProvider for ShaderIncludeProvider {
+    type IncludeContext = String;
+
+    fn resolve_path(
+        &self, 
+        path: &str, 
+        parent_file: &Self::IncludeContext
+    ) -> std::result::Result<
+        shader_prepper::ResolvedInclude<Self::IncludeContext>,
+        shader_prepper::BoxedIncludeProviderError,
+    > {
+        let resolved_path = if let Some('/') = path.chars().next() {
+            // Absolute path
+            path.to_owned()
+        } else {
+            // Relative path - resolve relative to parent file
+            let mut folder: RelativePathBuf = parent_file.into();
+            folder.pop(); // Remove filename, keep directory
+            folder.join(path).as_str().to_string()
+        };
+
+        // Create the resolved include with proper context
+        use shader_prepper::ResolvedIncludePath;
+        let resolved_include_path = ResolvedIncludePath(resolved_path.clone());
+        
+        Ok(shader_prepper::ResolvedInclude {
+            resolved_path: resolved_include_path,
+            context: resolved_path,
+        })
+    }
+
+    fn get_include(
+        &mut self,
+        resolved_path: &shader_prepper::ResolvedIncludePath,
+    ) -> std::result::Result<
+        String,
+        shader_prepper::BoxedIncludeProviderError,
+    > {
+        // Access the path string from ResolvedIncludePath
+        let path_str = &resolved_path.0;
+        
+        // Try to load the file content
+        let file_path = if path_str.starts_with('/') {
+            // Absolute path from assets/shaders
+            format!("assets{}", path_str)
+        } else {
+            // Relative path
+            format!("assets/shaders/{}", path_str)
+        };
+
+        // Load the file content
+        match std::fs::read_to_string(&file_path) {
+            Ok(content) => Ok(content),
+            Err(err) => {
+                let error_msg = format!("Failed to include shader file '{}': {}", file_path, err);
+                log::error!("{}", error_msg);
+                Err(error_msg.into())
+            }
+        }
     }
 }
 
@@ -165,7 +245,7 @@ pub fn get_cs_local_size_from_spirv(spirv: &[u32]) -> Result<[u32; 3]> {
 
 fn compile_generic_shader_hlsl_impl(
     name: &str,
-    source: &[shader_prepper::SourceChunk],
+    source: &[shader_prepper::SourceChunk<String>],
     target_profile: &str,
 ) -> Result<Bytes> {
     let mut source_text = String::new();

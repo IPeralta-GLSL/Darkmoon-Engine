@@ -7,6 +7,6 @@ publish = false
 
 [dependencies]
 ash = "0.33"
-imgui = "0.7"
+imgui = { version = "0.11", features = ["docking", "tables-api"] }
 arrayvec = "0.5"
 memoffset = "0.6"

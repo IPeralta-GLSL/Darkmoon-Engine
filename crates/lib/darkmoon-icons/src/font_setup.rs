@@ -13,7 +13,7 @@ pub fn setup_icon_fonts(imgui: &mut Context) -> Result<(), String> {
         .map_err(|e| format!("Error leyendo fuente {}: {}", font_path, e))?;
     
     // Configurar rango de iconos Font Awesome
-    let icon_ranges = FontGlyphRanges::from_slice(&[font_awesome::ICON_MIN as u16, font_awesome::ICON_MAX_16 as u16, 0]);
+    let icon_ranges = FontGlyphRanges::from_slice(&[font_awesome::ICON_MIN as u32, font_awesome::ICON_MAX_16 as u32, 0]);
     
     // Añadir fuente de iconos Font Awesome usando la API correcta
     imgui.fonts().add_font(&[

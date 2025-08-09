@@ -13,6 +13,7 @@ use ash::{
     vk,
 };
 use gpu_allocator::{AllocatorDebugSettings, VulkanAllocator, VulkanAllocatorCreateDesc};
+#[cfg(feature = "gpu-profiler-enabled")]
 use gpu_profiler::backend::ash::VulkanProfilerFrame;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
@@ -130,14 +131,23 @@ impl DeviceFrame {
             main_command_buffer: CommandBuffer::new(device, queue_family).unwrap(),
             presentation_command_buffer: CommandBuffer::new(device, queue_family).unwrap(),
             pending_resource_releases: Default::default(),
-            profiler_data: VulkanProfilerFrame::new(
-                device,
-                ProfilerBackend::new(
-                    device,
-                    global_allocator,
-                    pdevice.properties.limits.timestamp_period,
-                ),
-            ),
+            profiler_data: {
+                #[cfg(feature = "gpu-profiler-enabled")]
+                {
+                    VulkanProfilerFrame::new(
+                        device,
+                        ProfilerBackend::new(
+                            device,
+                            global_allocator,
+                            pdevice.properties.limits.timestamp_period,
+                        ),
+                    )
+                }
+                #[cfg(not(feature = "gpu-profiler-enabled"))]
+                {
+                    ()
+                }
+            },
         }
     }
 }

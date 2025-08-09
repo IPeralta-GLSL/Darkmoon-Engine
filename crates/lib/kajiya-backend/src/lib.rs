@@ -14,6 +14,7 @@ pub use ash;
 pub use error::BackendError;
 pub use file::{canonical_path_from_vfs, normalized_path_from_vfs, set_vfs_mount_point};
 pub use gpu_allocator;
+#[cfg(feature = "gpu-profiler-enabled")]
 pub use gpu_profiler;
 pub use rspirv_reflect;
 pub use vk_sync;

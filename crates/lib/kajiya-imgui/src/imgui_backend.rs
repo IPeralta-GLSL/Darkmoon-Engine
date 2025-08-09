@@ -136,46 +136,65 @@ impl ImGuiBackend {
             .handle_event(imgui.io_mut(), window, event);
     }
 
-    pub fn prepare_frame<'a>(
-        &mut self,
+    pub fn prepare_frame<'ui>(
+        &self,
         window: &winit::window::Window,
-        imgui: &'a mut imgui::Context,
-        dt: f32,
-    ) -> imgui::Ui<'a> {
+        imgui: &'ui mut imgui::Context,
+        dt: std::time::Duration,
+    ) -> &'ui mut imgui::Ui {
         self.imgui_platform
             .prepare_frame(imgui.io_mut(), window)
             .expect("Failed to prepare frame");
-        imgui.io_mut().delta_time = dt;
-        imgui.frame()
+        
+        imgui.io_mut().update_delta_time(dt);
+        imgui.new_frame()
     }
 
     pub fn finish_frame(
         &mut self,
-        ui: imgui::Ui<'_>,
-        window: &winit::window::Window,
+        _window: &winit::window::Window,
+        imgui: &mut imgui::Context,
         ui_renderer: &mut UiRenderer,
     ) {
-        let (ui_draw_data, ui_target_image) = {
-            self.imgui_platform.prepare_render(&ui, window);
-
-            let ui_draw_data: &'static imgui::DrawData =
-                unsafe { std::mem::transmute(ui.render()) };
-
-            (ui_draw_data, self.inner.lock().get_target_image().unwrap())
-        };
+        // In ImGui 0.11, we need to call render() to complete the frame
+        let draw_data = imgui.render();
+        
+        // Debug logging for GUI rendering
+        log::info!("ImGui finish_frame: draw_data has {} draw lists, display_size=[{:.1}, {:.1}]",
+            draw_data.draw_lists_count(),
+            draw_data.display_size[0],
+            draw_data.display_size[1]
+        );
+        
+        // Extract the data we need before moving into closure
+        let physical_size = [
+            draw_data.display_size[0] as u32,
+            draw_data.display_size[1] as u32,
+        ];
+        
+        // We need to copy draw_data for the closure. Since DrawData doesn't implement Clone,
+        // we'll use unsafe transmute to extend its lifetime for the render callback.
+        let ui_draw_data: &'static imgui::DrawData = unsafe { std::mem::transmute(draw_data) };
+        
+        let ui_target_image = self.inner.lock().get_target_image().unwrap();
 
         let inner = self.inner.clone();
         let device = self.device.clone();
-        let gui_extent = [window.inner_size().width, window.inner_size().height];
 
         ui_renderer.ui_frame = Some((
             Box::new(move |cb| {
-                inner
+                log::info!("UI render callback executing with size [{}, {}]", physical_size[0], physical_size[1]);
+                
+                let result = inner
                     .lock()
-                    .render(gui_extent, ui_draw_data, device, cb)
-                    .expect("ui.render");
-
-                Ok(())
+                    .render(physical_size, ui_draw_data, device, cb);
+                
+                log::info!("UI render callback completed with result: {:?}", result.is_some());
+                
+                match result {
+                    Some(_) => Ok(()),
+                    None => Ok(()), // Still return Ok even if no image returned
+                }
             }),
             ui_target_image,
         ));
