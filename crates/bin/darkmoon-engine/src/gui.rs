@@ -106,10 +106,21 @@ impl RuntimeState {
                 // --- Hierarchy Window ---
                 // Outliner window (was Hierarchy)
                 static mut SELECTED_ELEMENT: Option<usize> = None;
+                static mut RESET_WINDOW_POSITIONS: bool = false;
+                
                 if self.ui_windows.show_hierarchy {
+                    let reset_condition = unsafe {
+                        if RESET_WINDOW_POSITIONS {
+                            imgui::Condition::Always
+                        } else {
+                            imgui::Condition::FirstUseEver
+                        }
+                    };
+                    
                     ui.window("Outliner")
                         .opened(&mut self.ui_windows.show_hierarchy)
-                        .size([350.0, 500.0], imgui::Condition::FirstUseEver)
+                        .size([350.0, 500.0], reset_condition)
+                        .position([10.0, 30.0], reset_condition)  // Posición segura con margen
                         .build(|| {
                             // Sun as a selectable item
                             let sun_selected = unsafe { SELECTED_ELEMENT == Some(usize::MAX) };
@@ -156,10 +167,19 @@ impl RuntimeState {
                 // Attributes window for selected object
                 let selected_idx = unsafe { SELECTED_ELEMENT };
                 if let Some(idx) = selected_idx {
+                    let reset_condition = unsafe {
+                        if RESET_WINDOW_POSITIONS {
+                            imgui::Condition::Always
+                        } else {
+                            imgui::Condition::FirstUseEver
+                        }
+                    };
+                    
                     if idx == usize::MAX {
                         // Sun attributes
                         ui.window("Attributes")
-                            .size([350.0, 200.0], imgui::Condition::FirstUseEver)
+                            .size([350.0, 200.0], reset_condition)
+                            .position([370.0, 30.0], reset_condition)  // A la derecha del Outliner
                             .build(|| {
                                 let controller = &mut persisted.light.sun.controller;
                                 let mut dir = controller.towards_sun();
@@ -178,7 +198,8 @@ impl RuntimeState {
                             });
                     } else if let Some(elem) = persisted.scene.elements.get_mut(idx) {
                         ui.window("Attributes")
-                            .size([350.0, 300.0], imgui::Condition::FirstUseEver)
+                            .size([350.0, 300.0], reset_condition)
+                            .position([370.0, 30.0], reset_condition)  // A la derecha del Outliner
                             .build(|| {
                                 ui.text(&format!("Source: {:?}", elem.source));
                                 ui.text(&format!("Compound: {}", elem.is_compound));
@@ -217,8 +238,8 @@ impl RuntimeState {
                 // Only show regular GUI if user has it enabled
                 if self.show_gui {
                     log::debug!("Showing regular GUI (show_gui=true)");
-                    
-                    // --- Menubar superior ---
+                            
+                            // --- Menubar superior ---
                 if let Some(bar) = ui.begin_main_menu_bar() {
                     if let Some(file_menu) = ui.begin_menu("File") {
                         if let Some(scene_menu) = ui.begin_menu("Load Scene") {
@@ -274,6 +295,13 @@ impl RuntimeState {
                         if ui.menu_item_config("Debug").selected(self.ui_windows.show_debug).build() {
                             self.ui_windows.show_debug = !self.ui_windows.show_debug;
                         }
+                        
+                        ui.separator();
+                        if ui.menu_item("Reset Window Positions") {
+                            // Reset all window positions to default
+                            unsafe { RESET_WINDOW_POSITIONS = true; }
+                        }
+                        
                         window_menu.end();
                     }
                     if let Some(view_menu) = ui.begin_menu("View") {
@@ -1007,6 +1035,14 @@ impl RuntimeState {
                     ui.text("GPU profiling disabled");
                 }
                 } // Close the if self.show_gui block
+                
+                // Reset window positions flag after frame
+                unsafe {
+                    if RESET_WINDOW_POSITIONS {
+                        RESET_WINDOW_POSITIONS = false;
+                        log::info!("Window positions reset to default");
+                    }
+                }
                 });
                 log::debug!("ImGui frame callback completed");
             } else {
