@@ -15,7 +15,7 @@ use gilrs::Gilrs;
 use crate::{
     opt::Opt,
     persisted::{MeshSource, SceneElement, SceneElementTransform, MeshNode, ShouldResetPathTracer as _},
-    scene::SceneDesc,
+    scene::{SceneDesc, SceneInstanceDesc},
     sequence::{CameraPlaybackSequence, MemOption, SequenceValue},
     PersistedState,
     math::{Aabb, Frustum, OcclusionCuller, TriangleCuller},
@@ -80,6 +80,8 @@ pub struct RuntimeState {
     triangle_culler: TriangleCuller,
     pub streaming_integration: crate::streaming_integration::StreamingIntegration,
     pub ui_windows: UiWindowsState,
+    // Currently loaded scene file path for saving changes
+    pub current_scene_path: Option<PathBuf>,
 }
 
 enum SequencePlaybackState {
@@ -150,6 +152,7 @@ impl RuntimeState {
             triangle_culler: TriangleCuller::new(persisted.triangle_culling.clone()),
             streaming_integration: crate::streaming_integration::StreamingIntegration::new(),
             ui_windows: UiWindowsState::default(),
+            current_scene_path: None,
         };
 
         // Load meshes that the persisted scene was referring to
@@ -244,6 +247,9 @@ impl RuntimeState {
             });
         }
 
+        // Store the scene path for saving changes later
+        self.current_scene_path = Some(scene_path);
+
         Ok(())
     }
 
@@ -255,6 +261,66 @@ impl RuntimeState {
         path: &str,
     ) -> anyhow::Result<()> {
         self.load_scene(persisted, &mut ctx.world_renderer, path)
+    }
+
+    /// Save the current scene to a .dmoon file
+    pub fn save_scene_to_path(
+        &self,
+        persisted: &PersistedState,
+        path: impl Into<PathBuf>,
+    ) -> anyhow::Result<()> {
+        let path = path.into();
+        
+        // Convert persisted scene elements back to SceneDesc format
+        let instances: Vec<SceneInstanceDesc> = persisted.scene.elements.iter().map(|elem| {
+            // Extract mesh path from the source
+            let mesh_path = match &elem.source {
+                MeshSource::File(file_path) => {
+                    // Convert absolute path back to VFS format
+                    if file_path.starts_with("assets") {
+                        format!("/{}", file_path.strip_prefix("assets").unwrap().to_string_lossy())
+                    } else {
+                        format!("/{}", file_path.to_string_lossy())
+                    }
+                },
+                MeshSource::Cache(cache_path) => {
+                    format!("/cache/{}", cache_path.file_name().unwrap().to_string_lossy())
+                }
+            };
+
+            SceneInstanceDesc {
+                position: [elem.transform.position.x, elem.transform.position.y, elem.transform.position.z],
+                scale: [elem.transform.scale.x, elem.transform.scale.y, elem.transform.scale.z],
+                rotation: [elem.transform.rotation_euler_degrees.x, elem.transform.rotation_euler_degrees.y, elem.transform.rotation_euler_degrees.z],
+                mesh: mesh_path,
+            }
+        }).collect();
+
+        let scene_desc = SceneDesc { instances };
+
+        // Write to file with pretty formatting
+        let file = File::create(&path)
+            .with_context(|| format!("Creating scene file {:?}", path))?;
+        
+        ron::ser::to_writer_pretty(
+            file,
+            &scene_desc,
+            ron::ser::PrettyConfig::default()
+        )?;
+
+        log::info!("Scene saved to {:?}", path);
+        Ok(())
+    }
+
+    /// Save changes to the currently loaded scene file (if any)
+    pub fn save_current_scene(&self, persisted: &PersistedState) -> anyhow::Result<()> {
+        if let Some(scene_path) = &self.current_scene_path {
+            self.save_scene_to_path(persisted, scene_path.clone())?;
+            log::info!("Current scene saved to {:?}", scene_path);
+            Ok(())
+        } else {
+            anyhow::bail!("No scene file is currently loaded")
+        }
     }
 
     fn update_camera(&mut self, persisted: &mut PersistedState, ctx: &FrameContext) {
@@ -375,6 +441,17 @@ impl RuntimeState {
                 persisted.camera.position,
                 persisted.camera.position + persisted.camera.rotation * -Vec3::Z,
             );
+        }
+
+        if self
+            .keyboard
+            .was_just_pressed(self.keymap_config.misc.save_scene)
+        {
+            if let Err(err) = self.save_current_scene(persisted) {
+                log::error!("Failed to save scene (Ctrl+S): {:#}", err);
+            } else {
+                log::info!("Scene saved successfully! (Ctrl+S)");
+            }
         }
     }
 

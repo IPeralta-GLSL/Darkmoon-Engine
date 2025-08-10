@@ -104,6 +104,7 @@ pub struct Rendering {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Misc {
     pub print_camera_transform: VirtualKeyCode,
+    pub save_scene: VirtualKeyCode,
 }
 
 impl Default for Movement {
@@ -150,6 +151,7 @@ impl Default for Misc {
     fn default() -> Self {
         Self {
             print_camera_transform: C,
+            save_scene: S,
         }
     }
 }

@@ -75,6 +75,10 @@ impl RuntimeState {
 
         if should_show_gui || is_compiling {
             log::debug!("Starting ImGui frame with show_gui={}, is_compiling={}", self.show_gui, is_compiling);
+            
+            // Variable to track save requests outside the UI closure
+            let mut save_scene_requested = false;
+            
             if let Some(imgui_ctx) = ctx.imgui.take() {
                 log::info!("ImGui context taken successfully, calling frame()");
                 imgui_ctx.frame(|ui| {
@@ -107,6 +111,7 @@ impl RuntimeState {
                 // Outliner window (was Hierarchy)
                 static mut SELECTED_ELEMENT: Option<usize> = None;
                 static mut RESET_WINDOW_POSITIONS: bool = false;
+                static mut UNSAVED_CHANGES: bool = false;
                 
                 if self.ui_windows.show_hierarchy {
                     let reset_condition = unsafe {
@@ -166,6 +171,7 @@ impl RuntimeState {
 
                 // Attributes window for selected object
                 let selected_idx = unsafe { SELECTED_ELEMENT };
+                
                 if let Some(idx) = selected_idx {
                     let reset_condition = unsafe {
                         if RESET_WINDOW_POSITIONS {
@@ -198,34 +204,94 @@ impl RuntimeState {
                             });
                     } else if let Some(elem) = persisted.scene.elements.get_mut(idx) {
                         ui.window("Attributes")
-                            .size([350.0, 300.0], reset_condition)
+                            .size([350.0, 400.0], reset_condition)
                             .position([370.0, 30.0], reset_condition)  // A la derecha del Outliner
                             .build(|| {
                                 ui.text(&format!("Source: {:?}", elem.source));
                                 ui.text(&format!("Compound: {}", elem.is_compound));
                                 ui.separator();
-                                let pos = &mut elem.transform.position;
-                                let rot = &mut elem.transform.rotation_euler_degrees;
-                                let scale = &mut elem.transform.scale;
-                                Drag::new("Position X").speed(0.01).build(ui, &mut pos.x);
-                                Drag::new("Position Y").speed(0.01).build(ui, &mut pos.y);
-                                Drag::new("Position Z").speed(0.01).build(ui, &mut pos.z);
-                                Drag::new("Rotation X").speed(0.1).build(ui, &mut rot.x);
-                                Drag::new("Rotation Y").speed(0.1).build(ui, &mut rot.y);
-                                Drag::new("Rotation Z").speed(0.1).build(ui, &mut rot.z);
-                                Drag::new("Scale X").speed(0.01).build(ui, &mut scale.x);
-                                Drag::new("Scale Y").speed(0.01).build(ui, &mut scale.y);
-                                Drag::new("Scale Z").speed(0.01).build(ui, &mut scale.z);
+                                
+                                // Transform controls with grouping
+                                ui.text("Position:");
+                                ui.indent();
+                                let mut pos_changed = false;
+                                pos_changed |= Drag::new("X##pos").speed(0.1).range(-1000.0, 1000.0).build(ui, &mut elem.transform.position.x);
+                                pos_changed |= Drag::new("Y##pos").speed(0.1).range(-1000.0, 1000.0).build(ui, &mut elem.transform.position.y);
+                                pos_changed |= Drag::new("Z##pos").speed(0.1).range(-1000.0, 1000.0).build(ui, &mut elem.transform.position.z);
+                                ui.unindent();
+                                
+                                ui.text("Rotation (degrees):");
+                                ui.indent();
+                                let mut rot_changed = false;
+                                rot_changed |= Drag::new("X##rot").speed(1.0).range(-360.0, 360.0).build(ui, &mut elem.transform.rotation_euler_degrees.x);
+                                rot_changed |= Drag::new("Y##rot").speed(1.0).range(-360.0, 360.0).build(ui, &mut elem.transform.rotation_euler_degrees.y);
+                                rot_changed |= Drag::new("Z##rot").speed(1.0).range(-360.0, 360.0).build(ui, &mut elem.transform.rotation_euler_degrees.z);
+                                ui.unindent();
+                                
+                                ui.text("Scale:");
+                                ui.indent();
+                                let mut scale_changed = false;
+                                scale_changed |= Drag::new("X##scale").speed(0.01).range(0.001, 100.0).build(ui, &mut elem.transform.scale.x);
+                                scale_changed |= Drag::new("Y##scale").speed(0.01).range(0.001, 100.0).build(ui, &mut elem.transform.scale.y);
+                                scale_changed |= Drag::new("Z##scale").speed(0.01).range(0.001, 100.0).build(ui, &mut elem.transform.scale.z);
+                                ui.unindent();
+                                
+                                let any_changed = pos_changed || rot_changed || scale_changed;
+                                
+                                // Apply changes to renderer immediately for real-time feedback
+                                if any_changed {
+                                    ctx.world_renderer.set_instance_transform(elem.instance, elem.transform.affine_transform());
+                                    // Mark scene as having unsaved changes
+                                    unsafe { UNSAVED_CHANGES = true; }
+                                }
+                                
+                                ui.separator();
+                                
+                                // Reset transform button
+                                if ui.button("Reset Transform") {
+                                    elem.transform = crate::persisted::SceneElementTransform::IDENTITY;
+                                    ctx.world_renderer.set_instance_transform(elem.instance, elem.transform.affine_transform());
+                                    unsafe { UNSAVED_CHANGES = true; }
+                                }
+                                
+                                ui.separator();
+                                
+                                // Show save status and quick save button
+                                let has_unsaved = unsafe { UNSAVED_CHANGES };
+                                if let Some(scene_path) = &self.current_scene_path {
+                                    let scene_name = scene_path.file_name()
+                                        .and_then(|name| name.to_str())
+                                        .unwrap_or("Unknown");
+                                    
+                                    // Quick save button - only show if there are unsaved changes
+                                    if has_unsaved {
+                                        if ui.button(&format!("{} Quick Save", ICON_FLOPPY_DISK)) {
+                                            save_scene_requested = true;
+                                        }
+                                        ui.same_line();
+                                        ui.text_colored([1.0, 0.8, 0.0, 1.0], &format!("* {} has unsaved changes", scene_name));
+                                    } else {
+                                        ui.text_colored([0.0, 1.0, 0.0, 1.0], &format!("{} {} - All changes saved", ICON_CHECK, scene_name));
+                                    }
+                                    
+                                    ui.text_colored([0.7, 0.7, 0.7, 1.0], "Tip: Use 'S' key or File > Save Scene for quick save");
+                                } else {
+                                    ui.text_colored([0.7, 0.7, 0.7, 1.0], "No scene file loaded - drag & drop a .dmoon file");
+                                }
+                                
+                                // Show mesh node information if available
                                 if !elem.mesh_nodes.is_empty() {
                                     ui.separator();
-                                    ui.text("Mesh nodes:");
+                                    ui.text(&format!("{} Mesh Nodes ({}):", ICON_SHAPES, elem.mesh_nodes.len()));
+                                    ui.indent();
                                     for (nidx, node) in elem.mesh_nodes.iter().enumerate() {
                                         if let Some(name) = &node.name {
-                                            ui.bullet_text(name);
+                                            ui.bullet_text(&format!("{} {}", Self::get_node_icon(), name));
                                         } else {
-                                            ui.bullet_text(&format!("Node {}", nidx));
+                                            ui.bullet_text(&format!("{} Node {}", Self::get_node_icon(), nidx));
                                         }
                                     }
+                                    ui.unindent();
                                 }
                             });
                     }
@@ -274,6 +340,42 @@ impl RuntimeState {
                         }
                         
                         ui.separator();
+                        
+                        // Save options with visual status
+                        let has_unsaved = unsafe { UNSAVED_CHANGES };
+                        if let Some(scene_path) = &self.current_scene_path {
+                            let scene_name = scene_path.file_name()
+                                .and_then(|name| name.to_str())
+                                .unwrap_or("Unknown");
+                            
+                            let save_label = if has_unsaved {
+                                format!("{} Save Scene ({}) *", ICON_FLOPPY_DISK, scene_name)
+                            } else {
+                                format!("{} Save Scene ({})", ICON_FLOPPY_DISK, scene_name)
+                            };
+                            
+                            if ui.menu_item(&save_label) {
+                                if let Err(err) = self.save_current_scene(persisted) {
+                                    log::error!("Failed to save current scene: {:#}", err);
+                                } else {
+                                    log::info!("Scene saved successfully!");
+                                    unsafe { UNSAVED_CHANGES = false; }
+                                }
+                            }
+                            
+                            // Show save status
+                            if has_unsaved {
+                                ui.text_colored([1.0, 0.8, 0.0, 1.0], "  Unsaved changes");
+                            } else {
+                                ui.text_colored([0.0, 1.0, 0.0, 1.0], "  All changes saved");
+                            }
+                        } else {
+                            ui.menu_item_config(&format!("{} Save Scene", ICON_FLOPPY_DISK)).enabled(false).build();
+                            ui.text_colored([0.7, 0.7, 0.7, 1.0], "  No scene loaded");
+                        }
+                        
+                        ui.separator();
+                        ui.text_colored([0.6, 0.6, 0.6, 1.0], "Shortcut: S key for quick save");
                         
                         if ui.menu_item("Clear Scene") {
                             self.clear_scene_from_gui(persisted, ctx);
@@ -1034,7 +1136,28 @@ impl RuntimeState {
                     // GPU profiler is not available in this build
                     ui.text("GPU profiling disabled");
                 }
+                
+                // Handle save request within the scope where variables are defined
+                if save_scene_requested {
+                    if let Err(err) = self.save_current_scene(persisted) {
+                        log::error!("Failed to save scene: {:#}", err);
+                    } else {
+                        log::info!("Scene saved successfully!");
+                        unsafe { UNSAVED_CHANGES = false; }
+                    }
+                }
+                
                 } // Close the if self.show_gui block
+                
+                // Handle save request within the scope where variables are defined
+                if save_scene_requested {
+                    if let Err(err) = self.save_current_scene(persisted) {
+                        log::error!("Failed to save scene: {:#}", err);
+                    } else {
+                        log::info!("Scene saved successfully!");
+                        unsafe { UNSAVED_CHANGES = false; }
+                    }
+                }
                 
                 // Reset window positions flag after frame
                 unsafe {
