@@ -1149,16 +1149,6 @@ impl RuntimeState {
                 
                 } // Close the if self.show_gui block
                 
-                // Handle save request within the scope where variables are defined
-                if save_scene_requested {
-                    if let Err(err) = self.save_current_scene(persisted) {
-                        log::error!("Failed to save scene: {:#}", err);
-                    } else {
-                        log::info!("Scene saved successfully!");
-                        unsafe { UNSAVED_CHANGES = false; }
-                    }
-                }
-                
                 // Reset window positions flag after frame
                 unsafe {
                     if RESET_WINDOW_POSITIONS {

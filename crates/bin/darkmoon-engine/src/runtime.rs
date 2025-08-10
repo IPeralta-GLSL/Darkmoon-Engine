@@ -276,11 +276,26 @@ impl RuntimeState {
             // Extract mesh path from the source
             let mesh_path = match &elem.source {
                 MeshSource::File(file_path) => {
-                    // Convert absolute path back to VFS format
-                    if file_path.starts_with("assets") {
-                        format!("/{}", file_path.strip_prefix("assets").unwrap().to_string_lossy())
-                    } else {
-                        format!("/{}", file_path.to_string_lossy())
+                    // Convert to VFS format (always starts with /)
+                    let path_str = file_path.to_string_lossy();
+                    
+                    // Handle absolute paths that contain "assets/"
+                    if let Some(assets_pos) = path_str.find("assets/") {
+                        // Extract everything after "assets/"
+                        let relative_path = &path_str[assets_pos + 7..]; // Skip "assets/"
+                        format!("/{}", relative_path)
+                    } 
+                    // Handle relative paths starting with "assets/"
+                    else if path_str.starts_with("assets/") {
+                        format!("/{}", &path_str[7..]) // Skip "assets/"
+                    }
+                    // Handle paths already in VFS format (starting with /)
+                    else if path_str.starts_with("/") {
+                        path_str.to_string()
+                    }
+                    // Fallback for other cases
+                    else {
+                        format!("/{}", path_str)
                     }
                 },
                 MeshSource::Cache(cache_path) => {
