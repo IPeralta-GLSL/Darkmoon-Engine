@@ -2,9 +2,9 @@
     instances: [
         (
             position: (0, -0.001, 0),
-            scale: (0.01, 0.01, 0.01),
+            scale: (10, 10, 10),
             rotation: (0, 0, 0),
-            mesh: "/meshes/336_lrm/scene.gltf",
+            mesh: "/meshes/glass/glass_bunny.glb",
         ),
         (
             position: (0, 0, 0),
