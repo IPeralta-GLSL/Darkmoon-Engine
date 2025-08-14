@@ -1,7 +1,7 @@
 (
     camera: (
-        position: (-1.1356735, 0.8604085, 1.8085104),
-        rotation: (-0.043133326, -0.24505524, -0.010913969, 0.9684877),
+        position: (-1.5605837, 1.0639328, 2.6759431),
+        rotation: (-0.10335958, -0.2615174, -0.028179053, 0.9592349),
         vertical_fov: 62,
     ),
     light: (
@@ -40,7 +40,7 @@
     scene: (
         elements: [
             (
-                source: File("/home/iperalta/Documents/GitHub/Darkmoon Engine/assets/meshes/336_lrm/scene.gltf"),
+                source: File("/home/iperalta/Documents/GitHub/Darkmoon-Engine/assets/meshes/336_lrm/scene.gltf"),
                 transform: (
                     position: (0, -0.001, 0),
                     rotation_euler_degrees: (0, 0, 0),
@@ -18207,7 +18207,7 @@
                 is_compound: true,
             ),
             (
-                source: File("/home/iperalta/Documents/GitHub/Darkmoon Engine/assets/meshes/floor/scene.gltf"),
+                source: File("/home/iperalta/Documents/GitHub/Darkmoon-Engine/assets/meshes/floor/scene.gltf"),
                 transform: (
                     position: (0, 0, 0),
                     rotation_euler_degrees: (0, 0, 0),
@@ -18261,7 +18261,7 @@
         degenerate_epsilon: 0.0001,
         max_distance: 1000,
         angle_threshold: 0.1,
-        debug_logging: true,
+        debug_logging: false,
         log_interval_frames: 60,
     ),
 )

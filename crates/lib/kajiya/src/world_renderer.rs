@@ -856,14 +856,9 @@ impl WorldRenderer {
 
     pub fn set_ray_tracing_enabled(&mut self, enabled: bool) {
         self.ray_tracing_enabled = enabled;
-        // Update debug_shading_mode accordingly
-        // Mode 4 = RTX OFF is used when ray tracing is disabled
-        // to avoid issues with reflection buffers
-        if !enabled && self.debug_shading_mode == 0 {
-            self.debug_shading_mode = 4; // RTX OFF
-        } else if enabled && self.debug_shading_mode == 4 {
-            self.debug_shading_mode = 0; // Default
-        }
+        // Note: Do NOT automatically change debug_shading_mode anymore
+        // This allows rasterization to have full lighting and shadows
+        // User can manually control debug_shading_mode if needed
         // Note: render_mode is independent of ray_tracing_enabled
         // Standard mode can work with or without ray tracing
         // Reference mode is for path tracing regardless of ray tracing support

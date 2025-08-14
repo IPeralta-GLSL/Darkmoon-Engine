@@ -16,7 +16,7 @@ impl WorldRenderer {
         rg: &mut rg::TemporalRenderGraph,
         frame_desc: &WorldFrameDesc,
     ) -> rg::Handle<Image> {
-        let tlas = if rg.device().ray_tracing_enabled() {
+        let tlas = if rg.device().ray_tracing_enabled() && self.ray_tracing_enabled {
             Some(self.prepare_top_level_acceleration(rg))
         } else {
             None
@@ -339,7 +339,7 @@ impl WorldRenderer {
             rg::imageops::clear_color(rg, &mut accum_img, [0.0, 0.0, 0.0, 0.0]);
         }
 
-        if rg.device().ray_tracing_enabled() {
+        if rg.device().ray_tracing_enabled() && self.ray_tracing_enabled {
             let tlas = self.prepare_top_level_acceleration(rg);
 
             reference_path_trace(rg, &mut accum_img, self.bindless_descriptor_set, &tlas);

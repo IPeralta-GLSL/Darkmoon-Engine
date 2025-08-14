@@ -431,6 +431,11 @@ impl RuntimeState {
                                 ctx.world_renderer.reset_reference_accumulation = true;
                             }
                             
+                            ui.separator();
+                            ui.text_colored([0.0, 1.0, 0.0, 1.0], "Both Rasterization and Ray Tracing");
+                            ui.text_colored([0.0, 1.0, 0.0, 1.0], "now have full lighting & shadows!");
+                            ui.text_colored([0.7, 0.7, 0.7, 1.0], "Use Debug > Shading Mode to control");
+                            
                             rendering_menu.end();
                         }
                         view_menu.end();
@@ -1118,6 +1123,29 @@ impl RuntimeState {
                                 "Irradiance cache",
                             ],
                         );*/
+
+                        // Manual shading mode control - now independent of ray tracing mode
+                        ui.text("Shading Mode:");
+                        if ui.radio_button_bool("Default (Full Lighting)", ctx.world_renderer.debug_shading_mode == 0) {
+                            ctx.world_renderer.debug_shading_mode = 0;
+                        }
+                        if ui.radio_button_bool("No Base Color", ctx.world_renderer.debug_shading_mode == 1) {
+                            ctx.world_renderer.debug_shading_mode = 1;
+                        }
+                        if ui.radio_button_bool("Diffuse GI Only", ctx.world_renderer.debug_shading_mode == 2) {
+                            ctx.world_renderer.debug_shading_mode = 2;
+                        }
+                        if ui.radio_button_bool("Reflections Only", ctx.world_renderer.debug_shading_mode == 3) {
+                            ctx.world_renderer.debug_shading_mode = 3;
+                        }
+                        if ui.radio_button_bool("RTX OFF (No Shadows)", ctx.world_renderer.debug_shading_mode == 4) {
+                            ctx.world_renderer.debug_shading_mode = 4;
+                        }
+                        if ui.radio_button_bool("Irradiance Cache", ctx.world_renderer.debug_shading_mode == 5) {
+                            ctx.world_renderer.debug_shading_mode = 5;
+                        }
+                        
+                        ui.separator();
 
                         Drag::new("Max FPS").range(1, MAX_FPS_LIMIT).build(ui, &mut self.max_fps);
 
