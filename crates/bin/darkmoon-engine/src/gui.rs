@@ -410,25 +410,24 @@ impl RuntimeState {
                         if let Some(rendering_menu) = ui.begin_menu("Rendering Type") {
                             // Rasterization mode (RTX OFF)
                             let is_rasterization = !ctx.world_renderer.is_ray_tracing_enabled() && 
-                                                  ctx.world_renderer.render_mode == RenderMode::Standard;
+                                                  ctx.world_renderer.get_render_mode() == RenderMode::Standard;
                             if ui.menu_item_config("Rasterization").selected(is_rasterization).build() {
                                 ctx.world_renderer.set_ray_tracing_enabled(false);
-                                ctx.world_renderer.render_mode = RenderMode::Standard;
+                                ctx.world_renderer.set_render_mode(RenderMode::Standard);
                             }
                             
                             // Ray Tracing mode
                             let is_ray_tracing = ctx.world_renderer.is_ray_tracing_enabled() && 
-                                                ctx.world_renderer.render_mode == RenderMode::Standard;
+                                                ctx.world_renderer.get_render_mode() == RenderMode::Standard;
                             if ui.menu_item_config("Ray Tracing").selected(is_ray_tracing).build() {
                                 ctx.world_renderer.set_ray_tracing_enabled(true);
-                                ctx.world_renderer.render_mode = RenderMode::Standard;
+                                ctx.world_renderer.set_render_mode(RenderMode::Standard);
                             }
                             
                             // Path Tracing mode (Reference)
-                            let is_path_tracing = ctx.world_renderer.render_mode == RenderMode::Reference;
+                            let is_path_tracing = ctx.world_renderer.get_render_mode() == RenderMode::Reference;
                             if ui.menu_item_config("Path Tracing").selected(is_path_tracing).build() {
-                                ctx.world_renderer.render_mode = RenderMode::Reference;
-                                ctx.world_renderer.reset_reference_accumulation = true;
+                                ctx.world_renderer.set_render_mode(RenderMode::Reference);
                             }
                             
                             ui.separator();

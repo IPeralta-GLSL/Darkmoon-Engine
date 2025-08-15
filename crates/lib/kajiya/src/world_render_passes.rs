@@ -339,10 +339,20 @@ impl WorldRenderer {
             rg::imageops::clear_color(rg, &mut accum_img, [0.0, 0.0, 0.0, 0.0]);
         }
 
+        // Reference mode requires both hardware RT support AND runtime RT enabled
         if rg.device().ray_tracing_enabled() && self.ray_tracing_enabled {
             let tlas = self.prepare_top_level_acceleration(rg);
-
             reference_path_trace(rg, &mut accum_img, self.bindless_descriptor_set, &tlas);
+        } else {
+            // Fallback: clear the accumulation buffer to black when RT is disabled
+            // This prevents showing stale accumulated data
+            rg::imageops::clear_color(rg, &mut accum_img, [0.0, 0.0, 0.0, 0.0]);
+            
+            if !rg.device().ray_tracing_enabled() {
+                log::warn!("Reference mode (path tracing) not available: hardware ray tracing not supported");
+            } else if !self.ray_tracing_enabled {
+                log::warn!("Reference mode (path tracing) not available: ray tracing disabled in settings");
+            }
         }
 
         self.post.render(

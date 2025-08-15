@@ -856,15 +856,69 @@ impl WorldRenderer {
 
     pub fn set_ray_tracing_enabled(&mut self, enabled: bool) {
         self.ray_tracing_enabled = enabled;
-        // Note: Do NOT automatically change debug_shading_mode anymore
-        // This allows rasterization to have full lighting and shadows
-        // User can manually control debug_shading_mode if needed
+        
+        // Automatically adjust debug_shading_mode based on ray tracing state
+        // This ensures proper rendering when switching between RT and rasterization
+        if enabled {
+            // Ray tracing enabled: use full lighting (mode 0)
+            self.debug_shading_mode = 0;
+        } else {
+            // Ray tracing disabled: use rasterization-compatible mode (mode 4)
+            // Mode 4 typically provides better fallback lighting without RT features
+            self.debug_shading_mode = 4;
+        }
+        
         // Note: render_mode is independent of ray_tracing_enabled
         // Standard mode can work with or without ray tracing
         // Reference mode is for path tracing regardless of ray tracing support
     }
+    
     pub fn is_ray_tracing_enabled(&self) -> bool {
         self.ray_tracing_enabled
+    }
+
+    /// Manually set debug shading mode (overrides automatic RT-based selection)
+    pub fn set_debug_shading_mode(&mut self, mode: usize) {
+        self.debug_shading_mode = mode;
+    }
+
+    /// Get current debug shading mode
+    pub fn get_debug_shading_mode(&self) -> usize {
+        self.debug_shading_mode
+    }
+
+    /// Set render mode (Standard/Reference) with proper validation
+    pub fn set_render_mode(&mut self, mode: RenderMode) {
+        match mode {
+            RenderMode::Standard => {
+                self.render_mode = mode;
+                // For standard mode, use current ray tracing setting
+                if self.ray_tracing_enabled {
+                    self.debug_shading_mode = 0;
+                } else {
+                    self.debug_shading_mode = 4;
+                }
+            },
+            RenderMode::Reference => {
+                // Reference mode (path tracing) requires ray tracing support
+                if self.device.ray_tracing_enabled() {
+                    self.render_mode = mode;
+                    self.ray_tracing_enabled = true;  // Force enable RT for path tracing
+                    self.debug_shading_mode = 0;      // Use full RT shading
+                    self.reset_reference_accumulation = true;  // Reset accumulation buffer
+                } else {
+                    // Fallback to standard mode if RT not available
+                    log::warn!("Path tracing not available without ray tracing support. Falling back to Standard mode.");
+                    self.render_mode = RenderMode::Standard;
+                    self.debug_shading_mode = 4;  // Use rasterization mode
+                }
+            },
+        }
+    }
+
+    /// Get current render mode
+    pub fn get_render_mode(&self) -> RenderMode {
+        self.render_mode
     }
 
     pub(crate) fn build_ray_tracing_top_level_acceleration(&mut self) {

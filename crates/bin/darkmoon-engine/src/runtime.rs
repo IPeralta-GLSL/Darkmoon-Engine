@@ -340,7 +340,7 @@ impl RuntimeState {
 
     fn update_camera(&mut self, persisted: &mut PersistedState, ctx: &FrameContext) {
         let smooth = self.camera.driver_mut::<Smooth>();
-        if ctx.world_renderer.render_mode == RenderMode::Reference {
+        if ctx.world_renderer.get_render_mode() == RenderMode::Reference {
             smooth.position_smoothness = 0.0;
             smooth.rotation_smoothness = 0.0;
         } else {
@@ -506,7 +506,7 @@ impl RuntimeState {
             self.reset_path_tracer = true;
         }
 
-        let sun_interp_t = if ctx.world_renderer.render_mode == RenderMode::Reference {
+        let sun_interp_t = if ctx.world_renderer.get_render_mode() == RenderMode::Reference {
             1.0
         } else {
             (-1.0 * persisted.movement.sun_rotation_smoothness).exp2()
@@ -524,14 +524,14 @@ impl RuntimeState {
                 .rendering
                 .switch_to_reference_path_tracing,
         ) {
-            match ctx.world_renderer.render_mode {
+            match ctx.world_renderer.get_render_mode() {
                 RenderMode::Standard => {
                     //camera.convergence_sensitivity = 1.0;
-                    ctx.world_renderer.render_mode = RenderMode::Reference;
+                    ctx.world_renderer.set_render_mode(RenderMode::Reference);
                 }
                 RenderMode::Reference => {
                     //camera.convergence_sensitivity = 0.0;
-                    ctx.world_renderer.render_mode = RenderMode::Standard;
+                    ctx.world_renderer.set_render_mode(RenderMode::Standard);
                 }
             };
         }
@@ -957,7 +957,7 @@ impl RuntimeState {
             || self
                 .keyboard
                 .was_just_pressed(self.keymap_config.rendering.reset_path_tracer))
-            && ctx.world_renderer.render_mode == RenderMode::Reference
+            && ctx.world_renderer.get_render_mode() == RenderMode::Reference
         {
             ctx.world_renderer.reset_reference_accumulation = true;
             self.reset_path_tracer = false;
