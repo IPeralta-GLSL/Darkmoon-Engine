@@ -88,11 +88,22 @@ impl WorldRenderer {
             &velocity_img,
         );
 
+        let temporal_accumulation_tex = rg
+            .get_or_create_temporal(
+                "temporal_accumulation",
+                ImageDesc::new_2d(vk::Format::R16G16B16A16_SFLOAT, frame_desc.render_extent).usage(
+                    vk::ImageUsageFlags::SAMPLED
+                        | vk::ImageUsageFlags::STORAGE
+                        | vk::ImageUsageFlags::TRANSFER_DST,
+                ),
+            )
+            .unwrap();
+
         let ssgi_tex = self.ssgi.render(
             rg,
             &gbuffer_depth,
             &reprojection_map,
-            &accum_img,
+            &temporal_accumulation_tex,
             self.bindless_descriptor_set,
         );
         //let ssgi_tex = rg.create(ImageDesc::new_2d(vk::Format::R8_UNORM, [1, 1]));
@@ -121,8 +132,20 @@ impl WorldRenderer {
             )
         });
 
+        let _temporal_shadow_cache = rg
+            .get_or_create_temporal(
+                "temporal_shadow_cache",
+                ImageDesc::new_2d(vk::Format::R8_UNORM, frame_desc.render_extent).usage(
+                    vk::ImageUsageFlags::SAMPLED
+                        | vk::ImageUsageFlags::STORAGE
+                        | vk::ImageUsageFlags::TRANSFER_DST,
+                ),
+            )
+            .unwrap();
+
         let sun_shadow_mask = if let Some(tlas) = tlas.as_ref() {
-            trace_sun_shadow_mask(rg, &gbuffer_depth, tlas, self.bindless_descriptor_set)
+            let raw_shadow_mask = trace_sun_shadow_mask(rg, &gbuffer_depth, tlas, self.bindless_descriptor_set);
+            raw_shadow_mask
         } else {
             rg.create(gbuffer_depth.depth.desc().format(vk::Format::R8_UNORM))
         };
@@ -234,12 +257,8 @@ impl WorldRenderer {
             self.debug_show_wrc,
         );
 
-        // Render translucent materials with forward rendering
-        // Filter only translucent instances
         let translucent_instances: Vec<_> = self.instances.iter()
             .filter(|_inst| {
-                // TODO: Implement proper transparency detection
-                // For now, return false to skip all meshes
                 false
             })
             .cloned()
@@ -334,18 +353,26 @@ impl WorldRenderer {
             )
             .unwrap();
 
+        let _temporal_variance = rg
+            .get_or_create_temporal(
+                "refpt.variance",
+                ImageDesc::new_2d(vk::Format::R16G16B16A16_SFLOAT, frame_desc.render_extent).usage(
+                    vk::ImageUsageFlags::SAMPLED
+                        | vk::ImageUsageFlags::STORAGE
+                        | vk::ImageUsageFlags::TRANSFER_DST,
+                ),
+            )
+            .unwrap();
+
         if self.reset_reference_accumulation {
             self.reset_reference_accumulation = false;
             rg::imageops::clear_color(rg, &mut accum_img, [0.0, 0.0, 0.0, 0.0]);
         }
 
-        // Reference mode requires both hardware RT support AND runtime RT enabled
         if rg.device().ray_tracing_enabled() && self.ray_tracing_enabled {
             let tlas = self.prepare_top_level_acceleration(rg);
             reference_path_trace(rg, &mut accum_img, self.bindless_descriptor_set, &tlas);
         } else {
-            // Fallback: clear the accumulation buffer to black when RT is disabled
-            // This prevents showing stale accumulated data
             rg::imageops::clear_color(rg, &mut accum_img, [0.0, 0.0, 0.0, 0.0]);
             
             if !rg.device().ray_tracing_enabled() {

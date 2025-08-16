@@ -23,6 +23,7 @@ pub mod shadows;
 pub mod sky;
 pub mod ssgi;
 pub mod taa;
+pub mod temporal_reprojection;
 pub mod ussgi;
 pub mod wrc;
 
