@@ -10,6 +10,7 @@ pub mod ray_tracing;
 pub mod shader;
 pub mod surface;
 pub mod swapchain;
+pub mod vrs;
 
 use ash::vk;
 #[allow(unused_imports)]

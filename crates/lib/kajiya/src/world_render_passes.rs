@@ -5,9 +5,10 @@ use crate::{
         raster_translucent_meshes::*, reference::reference_path_trace, 
         shadows::trace_sun_shadow_mask, GbufferDepth,
     },
+    vrs_integration::*,
     world_renderer::{RenderDebugMode, WorldRenderer},
 };
-use kajiya_backend::{ash::vk, vulkan::image::*};
+use kajiya_backend::{ash::vk, vulkan::{image::*, vrs::VrsConfig}};
 use kajiya_rg::{self as rg, GetOrCreateTemporal};
 
 impl WorldRenderer {
@@ -227,6 +228,16 @@ impl WorldRenderer {
         }
 
         let rtr = rtr.filter_temporal(rg, &gbuffer_depth, &reprojection_map);
+
+        let vrs_config = WorldRenderer::get_vrs_config();
+        
+        let _shading_rate_img = self.create_vrs_shading_rate_image(
+            rg,
+            frame_desc.render_extent,
+            &gbuffer_depth.gbuffer,
+            &velocity_img,
+            &vrs_config,
+        );
 
         let mut debug_out_tex = rg.create(ImageDesc::new_2d(
             vk::Format::R16G16B16A16_SFLOAT,

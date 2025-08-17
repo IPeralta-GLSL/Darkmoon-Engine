@@ -9,6 +9,7 @@ pub mod math;
 pub mod mmap;
 pub mod renderers;
 pub mod ui_renderer;
+pub mod vrs_integration;
 pub mod world_render_passes;
 pub mod world_renderer;
 pub mod world_renderer_mmap_adapter;

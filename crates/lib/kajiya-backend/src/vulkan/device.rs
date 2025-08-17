@@ -6,6 +6,7 @@ use super::{
     error::CrashMarkerNames,
     physical_device::{PhysicalDevice, QueueFamily},
     profiler::ProfilerBackend,
+    vrs::{VrsConfig, VrsManager},
 };
 use anyhow::Result;
 use ash::{
@@ -172,6 +173,8 @@ pub struct Device {
     frames: [Mutex<Arc<DeviceFrame>>; 2],
 
     ray_tracing_enabled: bool,
+    vrs_enabled: bool,
+    pub vrs_manager: Mutex<VrsManager>,
 }
 
 // Allowing `Send` on `frames` is technically unsound. There are some checks
@@ -226,6 +229,8 @@ impl Device {
             },
             #[cfg(feature = "dlss")]
             vk::NvxImageViewHandleFn::name().as_ptr(),
+            // Variable Rate Shading
+            vk::KhrFragmentShadingRateFn::name().as_ptr(),
         ];
 
         let ray_tracing_extensions = [
@@ -303,6 +308,9 @@ impl Device {
         let mut ray_tracing_pipeline_features =
             ash::vk::PhysicalDeviceRayTracingPipelineFeaturesKHR::default();
 
+        let mut fragment_shading_rate_features =
+            ash::vk::PhysicalDeviceFragmentShadingRateFeaturesKHR::default();
+
         unsafe {
             let instance = &pdevice.instance.raw;
 
@@ -312,7 +320,8 @@ impl Device {
                 .push_next(&mut imageless_framebuffer)
                 .push_next(&mut shader_float16_int8)
                 .push_next(&mut vulkan_memory_model)
-                .push_next(&mut get_buffer_device_address_features);
+                .push_next(&mut get_buffer_device_address_features)
+                .push_next(&mut fragment_shading_rate_features);
 
             if ray_tracing_enabled {
                 features2 = features2
@@ -332,6 +341,7 @@ impl Device {
             debug!("{:#?}", &shader_float16_int8);
             debug!("{:#?}", &vulkan_memory_model);
             debug!("{:#?}", &get_buffer_device_address_features);
+            debug!("{:#?}", &fragment_shading_rate_features);
 
             // The suggested `#[rustfmt::skip]` is not stable
             #[allow(clippy::deprecated_cfg_attr)]
@@ -354,6 +364,17 @@ impl Device {
                 assert!(imageless_framebuffer.imageless_framebuffer != 0);
 
                 assert!(shader_float16_int8.shader_int8 != 0);
+
+                // Enable VRS features if supported, but don't fail if not available
+                if fragment_shading_rate_features.pipeline_fragment_shading_rate != 0 {
+                    log::info!("Variable Rate Shading (VRS) pipeline feature supported");
+                }
+                if fragment_shading_rate_features.primitive_fragment_shading_rate != 0 {
+                    log::info!("Variable Rate Shading (VRS) primitive feature supported");
+                }
+                if fragment_shading_rate_features.attachment_fragment_shading_rate != 0 {
+                    log::info!("Variable Rate Shading (VRS) attachment feature supported");
+                }
 
                 if ray_tracing_enabled {
                     assert!(descriptor_indexing.shader_uniform_buffer_array_non_uniform_indexing != 0);
@@ -426,12 +447,22 @@ impl Device {
             let ray_tracing_pipeline_properties =
                 khr::RayTracingPipeline::get_properties(&pdevice.instance.raw, pdevice.raw);
 
+            let vrs_enabled = fragment_shading_rate_features.pipeline_fragment_shading_rate != 0;
+            
+            if vrs_enabled {
+                log::info!("Variable Rate Shading (VRS) enabled");
+            } else {
+                log::info!("Variable Rate Shading (VRS) not supported or disabled");
+            }
+
             let crash_tracking_buffer = Self::create_buffer_impl(
                 &device,
                 &mut global_allocator,
                 BufferDesc::new_gpu_to_cpu(4, vk::BufferUsageFlags::TRANSFER_DST),
                 "crash tracking buffer",
             )?;
+
+            let vrs_manager = VrsManager::new(device.clone());
 
             Ok(Arc::new(Device {
                 pdevice: pdevice.clone(),
@@ -453,6 +484,8 @@ impl Device {
                     //Mutex::new(Arc::new(frame2)),
                 ],
                 ray_tracing_enabled,
+                vrs_enabled,
+                vrs_manager: Mutex::new(vrs_manager),
             }))
         }
     }
@@ -637,6 +670,18 @@ impl Device {
 
     pub fn ray_tracing_enabled(&self) -> bool {
         self.ray_tracing_enabled
+    }
+
+    pub fn vrs_enabled(&self) -> bool {
+        self.vrs_enabled
+    }
+
+    pub fn vrs_tile_size(&self) -> Option<[u32; 2]> {
+        if self.vrs_enabled {
+            Some([16, 16])
+        } else {
+            None
+        }
     }
 }
 
