@@ -146,6 +146,9 @@ pub struct WorldRenderer {
     pub(super) translucent_render_pass: Arc<RenderPass>,
     pub(super) bindless_descriptor_set: vk::DescriptorSet,
     pub(super) meshes: Vec<UploadedTriMesh>,
+    
+    // Store which meshes have translucent materials
+    pub(super) mesh_has_translucent_materials: Vec<bool>,
 
     pub(super) mesh_lights: Vec<MeshLightSet>,
 
@@ -468,6 +471,7 @@ impl WorldRenderer {
             //cube_index_buffer: Arc::new(cube_index_buffer),
             device: backend.device.clone(),
             meshes: Default::default(),
+            mesh_has_translucent_materials: Default::default(),
             instances: Default::default(),
             instance_handles: Default::default(),
             instance_handle_to_index: Default::default(),
@@ -759,6 +763,13 @@ impl WorldRenderer {
             index_count: mesh.indices.len() as _,
         });
 
+        // Check if this mesh has any translucent materials
+        let has_translucent_materials = mesh
+            .materials
+            .iter()
+            .any(|mat| mat.transparency > 0.01 || mat.transmission > 0.01);
+        self.mesh_has_translucent_materials.push(has_translucent_materials);
+
         let mesh_lights = if opts.use_lights {
             let emissive_materials = mesh
                 .materials
@@ -875,6 +886,14 @@ impl WorldRenderer {
     
     pub fn is_ray_tracing_enabled(&self) -> bool {
         self.ray_tracing_enabled
+    }
+
+    pub fn mesh_has_translucent_materials(&self, mesh: MeshHandle) -> bool {
+        if mesh.0 >= self.mesh_has_translucent_materials.len() {
+            log::warn!("Invalid mesh handle: {} >= {}", mesh.0, self.mesh_has_translucent_materials.len());
+            return false;
+        }
+        self.mesh_has_translucent_materials.get(mesh.0).copied().unwrap_or(false)
     }
 
     /// Manually set debug shading mode (overrides automatic RT-based selection)

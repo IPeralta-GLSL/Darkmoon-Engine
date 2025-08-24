@@ -268,14 +268,21 @@ impl WorldRenderer {
             self.debug_show_wrc,
         );
 
-        let translucent_instances: Vec<_> = self.instances.iter()
-            .filter(|_inst| {
-                false
-            })
-            .cloned()
-            .collect();
+                let translucent_instances: Vec<_> = self.instances.iter().filter(|inst| {
+            // Check if the mesh associated with this instance has translucent materials
+            let is_translucent = self.mesh_has_translucent_materials(inst.mesh);
+            if is_translucent {
+                log::info!("Found translucent instance with mesh {}", inst.mesh.0);
+            }
+            is_translucent
+        }).copied().collect();
+
+        log::info!("Found {} translucent instances out of {} total", translucent_instances.len(), self.instances.len());
 
         if !translucent_instances.is_empty() {
+            log::info!("Rendering {} translucent instances", translucent_instances.len());
+            // Temporarily disable translucent rendering to test if this is causing the hang
+            /*
             raster_translucent_meshes(
                 rg,
                 self.translucent_render_pass.clone(),
@@ -288,6 +295,7 @@ impl WorldRenderer {
                     bindless_descriptor_set: self.bindless_descriptor_set,
                 },
             );
+            */
         }
 
         #[allow(unused_mut)]
