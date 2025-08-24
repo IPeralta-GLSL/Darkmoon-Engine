@@ -31,11 +31,11 @@ pub fn raster_translucent_meshes(
     let pipeline = pass.register_raster_pipeline(
         &[
             PipelineShaderDesc::builder(ShaderPipelineStage::Vertex)
-                .hlsl_source("/shaders/translucent_vs_simple.hlsl")
+                .hlsl_source("/shaders/translucent_vs.hlsl")
                 .build()
                 .unwrap(),
             PipelineShaderDesc::builder(ShaderPipelineStage::Pixel)
-                .hlsl_source("/shaders/translucent_ps_simple.hlsl")
+                .hlsl_source("/shaders/translucent_ps.hlsl")
                 .build()
                 .unwrap(),
         ],
