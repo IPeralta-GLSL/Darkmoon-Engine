@@ -1,0 +1,15 @@
+# Configuración de Clippy para Darkmoon Engine
+# Archivo: .clippy.toml
+
+# Warn on potential performance issues
+cognitive-complexity-threshold = 30
+type-complexity-threshold = 250
+too-many-arguments-threshold = 7
+too-many-lines-threshold = 100
+
+# Encourage better practices
+avoid-breaking-exported-api = false
+msrv = "1.75"
+
+# Custom allowed/denied lints for graphics programming
+# Graphics code often needs performance over readability

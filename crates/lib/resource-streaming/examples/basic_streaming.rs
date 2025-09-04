@@ -4,12 +4,11 @@ use resource_streaming::{
 };
 use anyhow::Result;
 
-/// Ejemplo de uso del sistema de streaming de recursos
-#[tokio::main]
-async fn main() -> Result<()> {
-    println!("Iniciando ejemplo de resource streaming...");
+
+fn main() -> Result<()> {
+    println!("Starting resource streaming example...");
     
-    // Configurar el sistema de streaming
+
     let config = StreamingConfig {
         max_cache_size: 1024 * 1024 * 1024, // 1GB
         worker_threads: 6,
@@ -20,50 +19,48 @@ async fn main() -> Result<()> {
         asset_base_path: "assets".to_string(),
     };
     
-    // Inicializar el gestor de streaming
-    let streaming_manager = initialize_streaming(config).await?;
+
+    let streaming_manager = initialize_streaming(config)?;
     
-    // Simular el bucle principal del juego
-    simulate_game_loop(streaming_manager).await?;
+
+    simulate_game_loop(streaming_manager)?;
     
     Ok(())
 }
 
-async fn simulate_game_loop(streaming_manager: ResourceStreamingManager) -> Result<()> {
-    println!("Iniciando simulación del bucle principal del juego...");
+fn simulate_game_loop(streaming_manager: ResourceStreamingManager) -> Result<()> {
+    println!("Starting game loop simulation...");
     
-    // Solicitar carga de varios recursos
+
     let _mesh_handle = streaming_manager.request_resource("meshes/character.gltf", LoadPriority::High);
     let _texture_handle = streaming_manager.request_resource("textures/character_diffuse.png", LoadPriority::High);
     let _environment_handle = streaming_manager.request_resource("environments/forest.gltf", LoadPriority::Medium);
     
-    // Simular posición de cámara
+
     let mut camera_position = [0.0, 0.0, 0.0];
     let camera_direction = [0.0, 0.0, 1.0];
     
-    // Simular 10 frames del juego
+
     for frame in 0..10 {
         println!("Frame {}", frame);
         
-        // Mover la cámara hacia adelante
+
         camera_position[2] += 5.0;
         
-        // Actualizar el sistema de streaming
         streaming_manager.update(&camera_position, &camera_direction);
         
-        // Obtener y mostrar estadísticas
         let stats = streaming_manager.get_stats();
-        println!("Estadísticas de streaming:");
-        println!("  Total de recursos: {}", stats.total_resources);
-        println!("  Recursos cargados: {}", stats.loaded_resources);
-        println!("  Recursos cargando: {}", stats.loading_resources);
-        println!("  Memoria utilizada: {} MB", stats.memory_used / (1024 * 1024));
-        println!("  Tasa de aciertos del cache: {:.1}%", stats.cache_hit_rate);
+        println!("Streaming statistics:");
+        println!("  Total resources: {}", stats.total_resources);
+        println!("  Loaded resources: {}", stats.loaded_resources);
+        println!("  Loading resources: {}", stats.loading_resources);
+        println!("  Memory used: {} MB", stats.memory_used / (1024 * 1024));
+        println!("  Cache hit rate: {:.1}%", stats.cache_hit_rate);
         
-        // Esperar un poco para simular el tiempo de frame
-        tokio::time::sleep(tokio::time::Duration::from_millis(16)).await; // ~60 FPS
+
+        std::thread::sleep(std::time::Duration::from_millis(16)); // ~60 FPS
     }
     
-    println!("Simulación completada");
+    println!("Simulation completed");
     Ok(())
 }
