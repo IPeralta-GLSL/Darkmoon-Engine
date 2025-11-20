@@ -109,10 +109,16 @@ fn main() -> anyhow::Result<()> {
     let mut persisted: PersistedState = if opt.empty_scene || opt.reset || (opt.scene.is_none() && opt.mesh.is_none()) {
         PersistedState::default()
     } else {
-        File::open(APP_STATE_CONFIG_FILE_PATH)
-            .map_err(|err| anyhow::anyhow!(err))
-            .and_then(|file| Ok(ron::de::from_reader(file)?))
-            .unwrap_or_default()
+        match File::open(APP_STATE_CONFIG_FILE_PATH) {
+            Ok(file) => ron::de::from_reader(file).unwrap_or_else(|e| {
+                log::warn!("Failed to parse state file: {}. Using defaults.", e);
+                PersistedState::default()
+            }),
+            Err(e) => {
+                log::debug!("No previous state file found: {}. Using defaults.", e);
+                PersistedState::default()
+            }
+        }
     };
 
     if opt.scene.is_some() || opt.mesh.is_some() {
@@ -131,11 +137,13 @@ fn main() -> anyhow::Result<()> {
 
     let state = state.run()?;
 
-    ron::ser::to_writer_pretty(
-        File::create(APP_STATE_CONFIG_FILE_PATH)?,
-        &state,
-        Default::default(),
-    )?;
+    if let Err(e) = File::create(APP_STATE_CONFIG_FILE_PATH)
+        .and_then(|file| {
+            ron::ser::to_writer_pretty(file, &state, Default::default())
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        }) {
+        log::warn!("Failed to save application state: {}", e);
+    }
 
     Ok(())
 }

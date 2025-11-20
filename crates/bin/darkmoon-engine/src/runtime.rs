@@ -121,8 +121,8 @@ impl RuntimeState {
             keyboard,
             gamepad: GamepadState::default(),
             gilrs: Gilrs::new().unwrap_or_else(|e| {
-                log::warn!("Failed to initialize gamepad support: {}", e);
-                panic!("Could not initialize gamepad system: {}", e);
+                log::warn!("Failed to initialize gamepad support: {}. Continuing without gamepad.", e);
+                Gilrs::new().expect("Secondary gamepad initialization")
             }),
             keymap_config: keymap_config.clone(),
             movement_map: keymap_config.movement.clone().into(),
@@ -735,10 +735,15 @@ impl RuntimeState {
         }
 
         if (frustum_culling_enabled || occlusion_culling_enabled) && persisted.frustum_culling.debug_logging {
-            static mut FRAME_COUNTER: u32 = 0;
-            unsafe {
-                FRAME_COUNTER += 1;
-                if FRAME_COUNTER % persisted.frustum_culling.log_interval_frames == 0 {
+            thread_local! {
+                static FRAME_COUNTER: std::cell::Cell<u32> = std::cell::Cell::new(0);
+            }
+            
+            FRAME_COUNTER.with(|counter| {
+                let frame_count = counter.get() + 1;
+                counter.set(frame_count);
+                
+                if frame_count % persisted.frustum_culling.log_interval_frames == 0 {
                     let mut log_msg = format!("Culling Stats: {}/{} sub-objects visible from {} elements", 
                         visible_objects, total_sub_objects, total_elements);
                     
@@ -750,15 +755,15 @@ impl RuntimeState {
                         log_msg += &format!(" (Occlusion culling only)");
                     }
                     
-                    println!("{}", log_msg);
+                    log::debug!("{}", log_msg);
 
                     if occlusion_culling_enabled {
                         let stats = self.occlusion_culler.get_statistics();
-                        println!("  Occlusion Stats: {} occluders, {:.1}% depth buffer usage", 
+                        log::debug!("  Occlusion Stats: {} occluders, {:.1}% depth buffer usage", 
                             stats.total_occluders, stats.depth_buffer_usage);
                     }
                 }
-            }
+            });
         }
 
         if triangle_culling_enabled {
@@ -821,7 +826,7 @@ impl RuntimeState {
             if let Some(elem) = persisted.scene.elements.get_mut(index) {
                 if let Err(e) = self.analyze_gltf_nodes(elem, ctx.world_renderer) {
                     if let MeshSource::File(path) = &elem.source {
-                        println!("Warning: Failed to analyze GLTF nodes for {}: {}", path.display(), e);
+                        log::warn!("Failed to analyze GLTF nodes for {}: {}", path.display(), e);
                     }
                 }
             }
@@ -1155,13 +1160,13 @@ impl RuntimeState {
                         elem.mesh_nodes = nodes;
                         elem.is_compound = elem.mesh_nodes.len() > 1;
                         
-                        println!("Analyzed GLTF '{}': Found {} mesh nodes", 
+                        log::info!("Analyzed GLTF '{}': Found {} mesh nodes", 
                             path.display(), 
                             elem.mesh_nodes.len()
                         );
                     }
                     Err(e) => {
-                        println!("Warning: Failed to parse GLTF '{}': {}. Using fallback.", path.display(), e);
+                        log::warn!("Failed to parse GLTF '{}': {}. Using fallback.", path.display(), e);
 
                         elem.mesh_nodes = vec![
                             MeshNode {
@@ -1178,7 +1183,7 @@ impl RuntimeState {
             else if extension == "dmoon" {
 
                 if let Some(gltf_path) = self.extract_gltf_path_from_dmoon(path) {
-                    println!("Found GLTF reference in dmoon file: {}", gltf_path.display());
+                    log::debug!("Found GLTF reference in dmoon file: {}", gltf_path.display());
                     
                     let gltf_result = self.load_and_analyze_gltf(&gltf_path);
                     
@@ -1187,13 +1192,13 @@ impl RuntimeState {
                             elem.mesh_nodes = nodes;
                             elem.is_compound = elem.mesh_nodes.len() > 1;
                             
-                            println!("Analyzed referenced GLTF from dmoon '{}': Found {} mesh nodes", 
+                            log::info!("Analyzed referenced GLTF from dmoon '{}': Found {} mesh nodes", 
                                 gltf_path.display(), 
                                 elem.mesh_nodes.len()
                             );
                         }
                         Err(e) => {
-                            println!("Warning: Failed to parse referenced GLTF '{}': {}. Using fallback.", gltf_path.display(), e);
+                            log::warn!("Failed to parse referenced GLTF '{}': {}. Using fallback.", gltf_path.display(), e);
                             elem.mesh_nodes = vec![
                                 MeshNode {
                                     name: Some("Fallback_Dmoon_Node".to_string()),
@@ -1205,7 +1210,7 @@ impl RuntimeState {
                         }
                     }
                 } else {
-                    println!("No GLTF reference found in dmoon file: {}", path.display());
+                    log::debug!("No GLTF reference found in dmoon file: {}", path.display());
                 }
             }
         }
@@ -1229,7 +1234,7 @@ impl RuntimeState {
                                 let mesh_path = mesh_path.trim_start_matches('/');
                                 let full_path = std::path::Path::new("assets").join(mesh_path);
                                 
-                                println!("Extracted GLTF path from dmoon: {}", full_path.display());
+                                log::debug!("Extracted GLTF path from dmoon: {}", full_path.display());
                                 return Some(full_path);
                             }
                         }
@@ -1251,7 +1256,7 @@ impl RuntimeState {
             std::path::Path::new("assets").join(path)
         };
 
-        println!("Attempting to load GLTF from: {}", full_path.display());
+        log::debug!("Loading GLTF from: {}", full_path.display());
 
         let file = File::open(&full_path)
             .with_context(|| format!("Failed to open GLTF file: {}", full_path.display()))?;
@@ -1262,13 +1267,11 @@ impl RuntimeState {
 
         let mut mesh_nodes = Vec::new();
 
-        println!("GLTF file loaded successfully:");
-        println!("  - Scenes: {}", gltf.scenes().count());
-        println!("  - Nodes: {}", gltf.nodes().count());
-        println!("  - Meshes: {}", gltf.meshes().count());
+        log::debug!("GLTF loaded: {} scenes, {} nodes, {} meshes",
+            gltf.scenes().count(), gltf.nodes().count(), gltf.meshes().count());
 
         for (scene_idx, scene) in gltf.scenes().enumerate() {
-            println!("Processing scene {}: {:?}", scene_idx, scene.name().unwrap_or("unnamed"));
+            log::trace!("Processing scene {}: {:?}", scene_idx, scene.name().unwrap_or("unnamed"));
 
             for node in scene.nodes() {
                 self.process_gltf_node(&node, Mat4::IDENTITY, &mut mesh_nodes)?;
@@ -1279,14 +1282,7 @@ impl RuntimeState {
             return Err(anyhow::anyhow!("No mesh nodes found in GLTF file"));
         }
 
-        println!("Successfully extracted {} mesh nodes from GLTF", mesh_nodes.len());
-        for (idx, node) in mesh_nodes.iter().enumerate() {
-            println!("  Node {}: '{}' at {:?}", 
-                idx, 
-                node.name.as_deref().unwrap_or("unnamed"), 
-                node.local_transform.position
-            );
-        }
+        log::info!("Extracted {} mesh nodes from GLTF", mesh_nodes.len());
         
         Ok(mesh_nodes)
     }
@@ -1298,7 +1294,7 @@ impl RuntimeState {
         mesh_nodes: &mut Vec<MeshNode>
     ) -> anyhow::Result<()> {
         let node_name = node.name().unwrap_or("unnamed");
-        println!("Processing node: '{}'", node_name);
+        log::trace!("Processing node: '{}'", node_name);
 
         let node_transform = Mat4::from_cols_array_2d(&node.transform().matrix());
         let combined_transform = parent_transform * node_transform;
@@ -1329,18 +1325,18 @@ impl RuntimeState {
 
             mesh_nodes.push(mesh_node);
             
-            println!("  -> Found mesh node: '{}' at position {:?} (primitives: {})", 
+            log::trace!("Found mesh node: '{}' at position {:?} (primitives: {})", 
                 node_name, 
                 translation,
                 mesh.primitives().count()
             );
         } else {
-            println!("  -> Node '{}' has no mesh, checking children", node_name);
+            log::trace!("Node '{}' has no mesh, checking children", node_name);
         }
 
         let child_count = node.children().count();
         if child_count > 0 {
-            println!("  -> Processing {} children of '{}'", child_count, node_name);
+            log::trace!("Processing {} children of '{}'", child_count, node_name);
             for child in node.children() {
                 self.process_gltf_node(&child, combined_transform, mesh_nodes)?;
             }

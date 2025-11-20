@@ -851,11 +851,10 @@ impl WorldRenderer {
     }
 
     pub fn mesh_has_translucent_materials(&self, mesh: MeshHandle) -> bool {
-        if mesh.0 >= self.mesh_has_translucent_materials.len() {
-            log::warn!("Invalid mesh handle: {} >= {}", mesh.0, self.mesh_has_translucent_materials.len());
-            return false;
-        }
-        self.mesh_has_translucent_materials.get(mesh.0).copied().unwrap_or(false)
+        self.mesh_has_translucent_materials.get(mesh.0).copied().unwrap_or_else(|| {
+            log::warn!("Invalid mesh handle: {} >= {}. Defaulting to false.", mesh.0, self.mesh_has_translucent_materials.len());
+            false
+        })
     }
 
     pub fn set_debug_shading_mode(&mut self, mode: usize) {

@@ -79,18 +79,18 @@ impl CommandBuffer {
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
             .queue_family_index(queue_family.index);
 
-        let pool = unsafe { device.create_command_pool(&pool_create_info, None).unwrap() };
+        let pool = unsafe { device.create_command_pool(&pool_create_info, None)? };
 
         let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::builder()
             .command_buffer_count(1)
             .command_pool(pool)
             .level(vk::CommandBufferLevel::PRIMARY);
 
-        let cb = unsafe {
-            device
-                .allocate_command_buffers(&command_buffer_allocate_info)
-                .unwrap()
-        }[0];
+        let cbs = unsafe {
+            device.allocate_command_buffers(&command_buffer_allocate_info)?
+        };
+        
+        let cb = cbs.get(0).copied().ok_or_else(|| anyhow::anyhow!("Failed to allocate command buffer"))?;
 
         let submit_done_fence = unsafe {
             device.create_fence(
@@ -115,13 +115,12 @@ impl DeviceFrame {
         device: &ash::Device,
         global_allocator: &mut VulkanAllocator,
         queue_family: &QueueFamily,
-    ) -> Self {
-        Self {
-            
+    ) -> Result<Self> {
+        Ok(Self {
             swapchain_acquired_semaphore: None,
             rendering_complete_semaphore: None,
-            main_command_buffer: CommandBuffer::new(device, queue_family).unwrap(),
-            presentation_command_buffer: CommandBuffer::new(device, queue_family).unwrap(),
+            main_command_buffer: CommandBuffer::new(device, queue_family)?,
+            presentation_command_buffer: CommandBuffer::new(device, queue_family)?,
             pending_resource_releases: Default::default(),
             profiler_data: {
                 #[cfg(feature = "gpu-profiler-enabled")]
@@ -140,7 +139,7 @@ impl DeviceFrame {
                     ()
                 }
             },
-        }
+        })
     }
 }
 
@@ -256,7 +255,7 @@ impl Device {
             for &ext in &device_extension_names {
                 let ext = std::ffi::CStr::from_ptr(ext).to_string_lossy();
                 if !supported_extensions.contains(ext.as_ref()) {
-                    panic!("Device extension not supported: {}", ext);
+                    anyhow::bail!("Device extension not supported: {}", ext);
                 }
             }
         }
@@ -385,8 +384,7 @@ impl Device {
                 .build();
 
             let device = instance
-                .create_device(pdevice.raw, &device_create_info, None)
-                .unwrap();
+                .create_device(pdevice.raw, &device_create_info, None)?;
 
             info!("Created a Vulkan device");
 
@@ -413,16 +411,16 @@ impl Device {
                 &device,
                 &mut global_allocator,
                 &universal_queue.family,
-            );
+            )?;
             let frame1 = DeviceFrame::new(
                 pdevice,
                 &device,
                 &mut global_allocator,
                 &universal_queue.family,
-            );
+            )?;
 
             let immutable_samplers = Self::create_samplers(&device);
-            let setup_cb = CommandBuffer::new(&device, &universal_queue.family).unwrap();
+            let setup_cb = CommandBuffer::new(&device, &universal_queue.family)?;
 
             let acceleration_structure_ext =
                 khr::AccelerationStructure::new(&pdevice.instance.raw, &device);
@@ -528,38 +526,38 @@ impl Device {
         *self
             .immutable_samplers
             .get(&desc)
-            .unwrap_or_else(|| panic!("Sampler not found: {:?}", desc))
+            .unwrap_or_else(|| {
+                log::error!("Sampler not found: {:?}. Using default.", desc);
+                self.immutable_samplers.values().next().expect("At least one sampler must exist")
+            })
     }
 
     pub fn begin_frame(&self) -> Arc<DeviceFrame> {
         let mut frame0 = self.frames[0].lock();
         {
-            let frame0: &mut DeviceFrame = Arc::get_mut(&mut frame0).unwrap_or_else(|| {
-                panic!("Unable to begin frame: frame data is being held by user code")
-            });
+            if let Some(frame0) = Arc::get_mut(&mut frame0) {
+                unsafe {
+                    puffin::profile_scope!("wait submit done");
 
-            unsafe {
-                puffin::profile_scope!("wait submit done");
+                    self.raw
+                        .wait_for_fences(
+                            &[
+                                frame0.main_command_buffer.submit_done_fence,
+                                frame0.presentation_command_buffer.submit_done_fence,
+                            ],
+                            true,
+                            std::u64::MAX,
+                        )
+                        .map_err(|err| self.report_error(err.into()))
+                        .expect("Wait for fence failed.");
+                }
 
-                self.raw
-                    .wait_for_fences(
-
-                        &[
-                            frame0.main_command_buffer.submit_done_fence,
-                            frame0.presentation_command_buffer.submit_done_fence,
-                        ],
-                        true,
-                        std::u64::MAX,
-                    )
-                    .map_err(|err| self.report_error(err.into()))
-                    .expect("Wait for fence failed.");
+                puffin::profile_scope!("release pending resources");
+                frame0
+                    .pending_resource_releases
+                    .get_mut()
+                    .release_all(&self.raw);
             }
-
-            puffin::profile_scope!("release pending resources");
-            frame0
-                .pending_resource_releases
-                .get_mut()
-                .release_all(&self.raw);
         }
 
         frame0.clone()
@@ -598,8 +596,7 @@ impl Device {
                     self.universal_queue.raw,
                     &[submit_info.build()],
                     vk::Fence::null(),
-                )
-                .expect("queue submit failed.");
+                )?;
 
             log::trace!("device_wait_idle");
 
@@ -607,21 +604,26 @@ impl Device {
         }
     }
 
-    pub fn finish_frame(&self, frame: Arc<DeviceFrame>) {
+    pub fn finish_frame(&self, frame: Arc<DeviceFrame>) -> Result<()> {
         drop(frame);
 
         let mut frame0 = self.frames[0].lock();
-        let frame0: &mut DeviceFrame = Arc::get_mut(&mut frame0).unwrap_or_else(|| {
-            panic!("Unable to finish frame: frame data is being held by user code")
-        });
+        if Arc::get_mut(&mut frame0).is_none() {
+            anyhow::bail!("Unable to finish frame: frame data is being held by user code");
+        }
 
         {
             let mut frame1 = self.frames[1].lock();
-            let frame1: &mut DeviceFrame = Arc::get_mut(&mut frame1).unwrap();
+            let frame1: &mut DeviceFrame = Arc::get_mut(&mut frame1)
+                .ok_or_else(|| anyhow::anyhow!("Frame still has outstanding references"))?;
+
+            let frame0: &mut DeviceFrame = Arc::get_mut(&mut frame0)
+                .ok_or_else(|| anyhow::anyhow!("Frame0 still has outstanding references"))?;
 
             std::mem::swap(frame0, frame1);
-            
         }
+        
+        Ok(())
     }
 
     pub fn physical_device(&self) -> &PhysicalDevice {
@@ -667,9 +669,6 @@ impl Drop for Device {
         }
     }
 }
-
-    }
-}*/
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub struct SamplerDesc {

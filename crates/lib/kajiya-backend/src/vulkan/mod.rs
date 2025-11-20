@@ -52,7 +52,7 @@ impl RenderBackend {
         config: RenderBackendConfig,
     ) -> anyhow::Result<Self> {
         let instance = instance::Instance::builder()
-            .required_extensions(ash_window::enumerate_required_extensions(window).unwrap())
+            .required_extensions(ash_window::enumerate_required_extensions(window)?)
             .graphics_debugging(config.graphics_debugging)
             .build()?;
         let surface = surface::Surface::create(&instance, window)?;
@@ -74,7 +74,8 @@ impl RenderBackend {
         );
 
         let physical_device = Arc::new(if let Some(device_index) = config.device_index {
-            physical_devices.into_iter().nth(device_index).unwrap()
+            physical_devices.into_iter().nth(device_index)
+                .ok_or_else(|| anyhow::anyhow!("Physical device index {} out of range", device_index))?
         } else {
             physical_devices
                 .into_iter()
@@ -86,7 +87,7 @@ impl RenderBackend {
                     vk::PhysicalDeviceType::VIRTUAL_GPU => 1,
                     _ => 0,
                 })
-                .unwrap()
+                .ok_or_else(|| anyhow::anyhow!("No suitable physical device found"))?
         });
 
         info!("Selected physical device: {:#?}", *physical_device);

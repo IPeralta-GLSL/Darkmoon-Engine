@@ -47,7 +47,8 @@ impl DynamicConstants {
         assert!(self.frame_offset_bytes + t_size < DYNAMIC_CONSTANTS_SIZE_BYTES);
 
         let buffer_offset = self.current_offset() as usize;
-        let dst = &mut self.buffer.allocation.mapped_slice_mut().unwrap()
+        let dst = &mut self.buffer.allocation.mapped_slice_mut()
+            .expect("Dynamic constants buffer must be mapped")
             [buffer_offset..buffer_offset + t_size];
 
         dst.copy_from_slice(as_byte_slice(t));
@@ -71,7 +72,8 @@ impl DynamicConstants {
 
         let mut dst_offset = buffer_offset;
         for t in iter {
-            let dst = &mut self.buffer.allocation.mapped_slice_mut().unwrap()
+            let dst = &mut self.buffer.allocation.mapped_slice_mut()
+                .expect("Dynamic constants buffer must be mapped")
                 [dst_offset..dst_offset + t_size];
             dst.copy_from_slice(as_byte_slice(&t));
             dst_offset += t_size + t_align - 1;

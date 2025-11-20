@@ -77,8 +77,7 @@ impl Device {
         };
 
         let buffer = unsafe {
-            raw.create_buffer(&buffer_info, None)
-                .expect("create_buffer")
+            raw.create_buffer(&buffer_info, None)?
         };
         let mut requirements = unsafe { raw.get_buffer_memory_requirements(buffer) };
 
@@ -107,8 +106,7 @@ impl Device {
             })?;
 
         unsafe {
-            raw.bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
-                .expect("bind_buffer_memory")
+            raw.bind_buffer_memory(buffer, allocation.memory(), allocation.offset())?
         };
 
         Ok(Buffer {
@@ -143,8 +141,11 @@ impl Device {
                 &format!("Initial data for {:?}", name),
             )?;
 
-            scratch_buffer.allocation.mapped_slice_mut().unwrap()[0..initial_data.len()]
-                .copy_from_slice(initial_data);
+            {
+                let scratch_slice = scratch_buffer.allocation.mapped_slice_mut()
+                    .ok_or_else(|| BackendError::Other("Scratch buffer not mapped".into()))?;
+                scratch_slice[0..initial_data.len()].copy_from_slice(initial_data);
+            }
 
             self.with_setup_cb(|cb| unsafe {
                 self.raw.cmd_copy_buffer(

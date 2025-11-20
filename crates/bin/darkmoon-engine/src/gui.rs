@@ -58,15 +58,18 @@ impl RuntimeState {
         let is_compiling = Self::is_shader_compilation_active() || kajiya_backend::shader_progress::is_compilation_or_heavy_work_active();
         let should_show_gui = self.show_gui || is_compiling;
 
-        static mut LAST_GUI_STATE: Option<(bool, bool, bool)> = None;
+        thread_local! {
+            static LAST_GUI_STATE: std::cell::Cell<Option<(bool, bool, bool)>> = std::cell::Cell::new(None);
+        }
+        
         let current_state = (self.show_gui, is_compiling, should_show_gui);
-        unsafe {
-            if LAST_GUI_STATE != Some(current_state) {
+        LAST_GUI_STATE.with(|last_state| {
+            if last_state.get() != Some(current_state) {
                 log::info!("GUI state changed: show_gui={}, is_compiling={}, should_show_gui={}", 
                     self.show_gui, is_compiling, should_show_gui);
-                LAST_GUI_STATE = Some(current_state);
+                last_state.set(Some(current_state));
             }
-        }
+        });
 
         if should_show_gui || is_compiling {
             log::debug!("Starting ImGui frame with show_gui={}, is_compiling={}", self.show_gui, is_compiling);
@@ -102,18 +105,20 @@ impl RuntimeState {
                     }
                 }
 
-                static mut SELECTED_ELEMENT: Option<usize> = None;
-                static mut RESET_WINDOW_POSITIONS: bool = false;
-                static mut UNSAVED_CHANGES: bool = false;
+                thread_local! {
+                    static SELECTED_ELEMENT: std::cell::Cell<Option<usize>> = std::cell::Cell::new(None);
+                    static RESET_WINDOW_POSITIONS: std::cell::Cell<bool> = std::cell::Cell::new(false);
+                    static UNSAVED_CHANGES: std::cell::Cell<bool> = std::cell::Cell::new(false);
+                }
                 
                 if self.ui_windows.show_hierarchy {
-                    let reset_condition = unsafe {
-                        if RESET_WINDOW_POSITIONS {
+                    let reset_condition = RESET_WINDOW_POSITIONS.with(|reset| {
+                        if reset.get() {
                             imgui::Condition::Always
                         } else {
                             imgui::Condition::FirstUseEver
                         }
-                    };
+                    });
                     
                     ui.window("Outliner")
                         .opened(&mut self.ui_windows.show_hierarchy)
@@ -121,12 +126,12 @@ impl RuntimeState {
                         .position([10.0, 30.0], reset_condition)  
                         .build(|| {
                             
-                            let sun_selected = unsafe { SELECTED_ELEMENT == Some(usize::MAX) };
+                            let sun_selected = SELECTED_ELEMENT.with(|sel| sel.get() == Some(usize::MAX));
                             let sun_label = create_icon_label(Self::get_sun_icon(), "Sun Direction");
                             if ui.selectable_config(&format!("{}", sun_label))
                                 .selected(sun_selected)
                                 .build() {
-                                unsafe { SELECTED_ELEMENT = Some(usize::MAX); }
+                                SELECTED_ELEMENT.with(|sel| sel.set(Some(usize::MAX)));
                             }
                             for (idx, elem) in persisted.scene.elements.iter().enumerate() {
                                 let element_icon = Self::get_element_icon(elem);
@@ -137,11 +142,11 @@ impl RuntimeState {
                                 };
                                 let element_label = create_icon_label(element_icon, &element_name);
                                 
-                                let is_selected = unsafe { SELECTED_ELEMENT == Some(idx) };
+                                let is_selected = SELECTED_ELEMENT.with(|sel| sel.get() == Some(idx));
                                 if ui.selectable_config(&format!("{}##{}", element_label, idx))
                                     .selected(is_selected)
                                     .build() {
-                                    unsafe { SELECTED_ELEMENT = Some(idx); }
+                                    SELECTED_ELEMENT.with(|sel| sel.set(Some(idx)));
                                 }
                                 if elem.is_compound && !elem.mesh_nodes.is_empty() {
                                     ui.tree_node_config(&format!("Nodes##{}", idx))
@@ -162,16 +167,16 @@ impl RuntimeState {
                         });
                 }
 
-                let selected_idx = unsafe { SELECTED_ELEMENT };
+                let selected_idx = SELECTED_ELEMENT.with(|sel| sel.get());
                 
                 if let Some(idx) = selected_idx {
-                    let reset_condition = unsafe {
-                        if RESET_WINDOW_POSITIONS {
+                    let reset_condition = RESET_WINDOW_POSITIONS.with(|reset| {
+                        if reset.get() {
                             imgui::Condition::Always
                         } else {
                             imgui::Condition::FirstUseEver
                         }
-                    };
+                    });
                     
                     if idx == usize::MAX {
                         
@@ -232,7 +237,7 @@ impl RuntimeState {
                                 if any_changed {
                                     ctx.world_renderer.set_instance_transform(elem.instance, elem.transform.affine_transform());
                                     
-                                    unsafe { UNSAVED_CHANGES = true; }
+                                    UNSAVED_CHANGES.with(|unsaved| unsaved.set(true));
                                 }
                                 
                                 ui.separator();
@@ -240,12 +245,12 @@ impl RuntimeState {
                                 if ui.button("Reset Transform") {
                                     elem.transform = crate::persisted::SceneElementTransform::IDENTITY;
                                     ctx.world_renderer.set_instance_transform(elem.instance, elem.transform.affine_transform());
-                                    unsafe { UNSAVED_CHANGES = true; }
+                                    UNSAVED_CHANGES.with(|unsaved| unsaved.set(true));
                                 }
                                 
                                 ui.separator();
 
-                                let has_unsaved = unsafe { UNSAVED_CHANGES };
+                                let has_unsaved = UNSAVED_CHANGES.with(|unsaved| unsaved.get());
                                 if let Some(scene_path) = &self.current_scene_path {
                                     let scene_name = scene_path.file_name()
                                         .and_then(|name| name.to_str())
@@ -325,7 +330,7 @@ impl RuntimeState {
                         
                         ui.separator();
 
-                        let has_unsaved = unsafe { UNSAVED_CHANGES };
+                        let has_unsaved = UNSAVED_CHANGES.with(|unsaved| unsaved.get());
                         if let Some(scene_path) = &self.current_scene_path {
                             let scene_name = scene_path.file_name()
                                 .and_then(|name| name.to_str())
@@ -342,7 +347,7 @@ impl RuntimeState {
                                     log::error!("Failed to save current scene: {:#}", err);
                                 } else {
                                     log::info!("Scene saved successfully!");
-                                    unsafe { UNSAVED_CHANGES = false; }
+                                    UNSAVED_CHANGES.with(|unsaved| unsaved.set(false));
                                 }
                             }
 
@@ -383,7 +388,7 @@ impl RuntimeState {
                         ui.separator();
                         if ui.menu_item("Reset Window Positions") {
                             
-                            unsafe { RESET_WINDOW_POSITIONS = true; }
+                            RESET_WINDOW_POSITIONS.with(|reset| reset.set(true));
                         }
                         
                         window_menu.end();
@@ -1011,18 +1016,18 @@ impl RuntimeState {
                         log::error!("Failed to save scene: {:#}", err);
                     } else {
                         log::info!("Scene saved successfully!");
-                        unsafe { UNSAVED_CHANGES = false; }
+                        UNSAVED_CHANGES.with(|unsaved| unsaved.set(false));
                     }
                 }
                 
                 } 
 
-                unsafe {
-                    if RESET_WINDOW_POSITIONS {
-                        RESET_WINDOW_POSITIONS = false;
+                RESET_WINDOW_POSITIONS.with(|reset| {
+                    if reset.get() {
+                        reset.set(false);
                         log::info!("Window positions reset to default");
                     }
-                }
+                });
                 });
                 log::debug!("ImGui frame callback completed");
             } else {

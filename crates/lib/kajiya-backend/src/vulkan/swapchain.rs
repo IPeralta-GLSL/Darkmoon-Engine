@@ -119,9 +119,11 @@ impl Swapchain {
             .build();
 
         let fns = khr::Swapchain::new(&device.instance.raw, &device.raw);
-        let swapchain = unsafe { fns.create_swapchain(&swapchain_create_info, None) }.unwrap();
+        let swapchain = unsafe { fns.create_swapchain(&swapchain_create_info, None) }
+            .map_err(|e| anyhow::anyhow!("Failed to create swapchain: {:?}", e))?;
 
-        let vk_images = unsafe { fns.get_swapchain_images(swapchain) }.unwrap();
+        let vk_images = unsafe { fns.get_swapchain_images(swapchain) }
+            .map_err(|e| anyhow::anyhow!("Failed to get swapchain images: {:?}", e))?;
 
         let images: Vec<Arc<crate::Image>> = vk_images
             .into_iter()
@@ -221,7 +223,8 @@ impl Swapchain {
                 Err(SwapchainAcquireImageErr::RecreateFramebuffer)
             }
             err => {
-                panic!("Could not acquire swapchain image: {:?}", err);
+                log::error!("Could not acquire swapchain image: {:?}", err);
+                Err(SwapchainAcquireImageErr::RecreateFramebuffer)
             }
         }
     }
@@ -247,7 +250,7 @@ impl Swapchain {
                     
                 }
                 err => {
-                    panic!("Could not present image: {:?}", err);
+                    log::error!("Could not present image: {:?}", err);
                 }
             }
         }

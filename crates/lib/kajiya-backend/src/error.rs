@@ -13,6 +13,9 @@ pub enum BackendError {
 
     #[error("Invalid resource access: {info:?}")]
     ResourceAccess { info: String },
+
+    #[error("{0}")]
+    Other(String),
 }
 
 impl From<ash::vk::Result> for BackendError {

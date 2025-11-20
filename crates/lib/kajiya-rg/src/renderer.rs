@@ -291,7 +291,9 @@ impl Renderer {
         retired_rg.release_resources(&mut self.transient_resource_cache);
 
         self.dynamic_constants.advance_frame();
-        self.device.finish_frame(current_frame);
+        self.device.finish_frame(current_frame)
+            .map_err(|e| log::error!("Failed to finish frame: {}", e))
+            .ok();
     }
 
     fn create_frame_descriptor_set(

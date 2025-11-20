@@ -166,7 +166,7 @@ impl Renderer {
             )
         };
 
-        let mut fonts = imgui.fonts();
+        let fonts = imgui.fonts();
         let texture = fonts.build_alpha8_texture();
 
         let (image_buffer, image_mem_offset) = {
