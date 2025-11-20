@@ -1,4 +1,4 @@
-// Based on `import.rs` in the `gltf` crate, but modified not to load images (we do that separately).
+
 
 use bytes::Bytes;
 use gltf::{buffer, image, Document, Error, Gltf, Result};
@@ -9,24 +9,17 @@ use crate::vfs_utils::to_vfs_path;
 
 type BufferBytes = Bytes;
 
-/// Return type of `import`.
 type Import = (Document, Vec<BufferBytes>, Vec<ImageSource>);
 
-/// Represents the set of URI schemes the importer supports.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 enum Scheme<'a> {
-    /// `data:[<media type>];base64,<data>`.
+    
     Data(Option<&'a str>, &'a str),
 
-    /// `file:[//]<absolute file path>`.
-    ///
-    /// Note: The file scheme does not implement authority.
     File(&'a str),
 
-    /// `../foo`, etc.
     Relative,
 
-    /// Placeholder for an unsupported URI scheme identifier.
     Unsupported,
 }
 
@@ -59,8 +52,7 @@ impl<'a> Scheme<'a> {
 
     fn read(base: Option<&Path>, uri: &str) -> Result<Vec<u8>> {
         match Scheme::parse(uri) {
-            // The path may be unused in the Scheme::Data case
-            // Example: "uri" : "data:application/octet-stream;base64,wsVHPgA...."
+
             Scheme::Data(_, base64) => base64::decode(base64).map_err(Error::Base64),
             Scheme::File(path) if base.is_some() => read_to_end(path),
             Scheme::Relative if base.is_some() => read_to_end(base.unwrap().join(uri)),
@@ -76,9 +68,7 @@ where
 {
     use io::Read;
     let file = fs::File::open(path.as_ref()).map_err(Error::Io)?;
-    // Allocate one extra byte so the buffer doesn't need to grow before the
-    // final `read` call at the end of the file.  Don't worry about `usize`
-    // overflow because reading will fail regardless in that case.
+
     let length = file.metadata().map(|x| x.len() + 1).unwrap_or(0);
     let mut reader = io::BufReader::new(file);
     let mut data = Vec::with_capacity(length as usize);
@@ -86,7 +76,6 @@ where
     Ok(data)
 }
 
-/// Import the buffer data referenced by a glTF document.
 pub fn import_buffer_data(
     document: &Document,
     base: Option<&Path>,
@@ -113,7 +102,6 @@ pub fn import_buffer_data(
     Ok(buffers)
 }
 
-/// Import the image data referenced by a glTF document.
 pub fn import_image_data(
     document: &Document,
     base: Option<&Path>,
@@ -135,7 +123,7 @@ pub fn import_image_data(
                     Scheme::Data(_none, ..) => return Err(Error::ExternalReferenceInSliceImport),
                     Scheme::Unsupported => return Err(Error::UnsupportedScheme),
                     Scheme::File(path) => {
-                        // Intenta convertir a VFS path si es posible
+                        
                         let abs = Path::new(path);
                         if let Some(vfs_path) = to_vfs_path(abs) {
                             images.push(ImageSource::File(vfs_path));
@@ -182,7 +170,6 @@ fn import_path(path: &Path) -> Result<Import> {
     import_impl(Gltf::from_reader_without_validation(reader)?, Some(base))
 }
 
-/// Import some glTF 2.0 from the file system.
 pub fn import<P>(path: P) -> Result<Import>
 where
     P: AsRef<Path>,

@@ -24,8 +24,8 @@ pub enum RayTracingGeometryType {
 #[derive(Clone, Copy, Debug)]
 pub struct RayTracingGeometryPart {
     pub index_count: usize,
-    pub index_offset: usize, // offset into the index buffer in bytes
-    pub max_vertex: u32, // the highest index of a vertex that will be addressed by a build command using this structure
+    pub index_offset: usize, 
+    pub max_vertex: u32, 
 }
 
 #[derive(Clone, Debug)]
@@ -97,7 +97,6 @@ impl Device {
         &self,
         desc: &RayTracingBottomAccelerationDesc,
     ) -> Result<RayTracingAcceleration, BackendError> {
-        //log::trace!("Creating ray tracing bottom acceleration: {:?}", desc);
 
         let geometries: Result<Vec<ash::vk::AccelerationStructureGeometryKHR>, BackendError> = desc
             .geometries
@@ -120,7 +119,7 @@ impl Device {
                                     .index_data(ash::vk::DeviceOrHostAddressConstKHR {
                                         device_address: desc.index_buffer,
                                     })
-                                    .index_type(ash::vk::IndexType::UINT32) // TODO
+                                    .index_type(ash::vk::IndexType::UINT32) 
                                     .build(),
                         })
                         .flags(ash::vk::GeometryFlagsKHR::OPAQUE)
@@ -155,8 +154,6 @@ impl Device {
             .map(|desc| desc.parts[0].index_count as u32 / 3)
             .collect();
 
-        // Create bottom-level acceleration structure
-
         let preallocate_bytes = 0;
         self.create_ray_tracing_acceleration(
             vk::AccelerationStructureTypeKHR::BOTTOM_LEVEL,
@@ -173,9 +170,6 @@ impl Device {
         desc: &RayTracingTopAccelerationDesc,
         scratch_buffer: &RayTracingAccelerationScratchBuffer,
     ) -> Result<RayTracingAcceleration, BackendError> {
-        //log::trace!("Creating ray tracing top acceleration: {:?}", desc);
-
-        // Create instance buffer
 
         let instances: Vec<GeometryInstance> = desc
             .instances
@@ -207,11 +201,10 @@ impl Device {
 
                 GeometryInstance::new(
                     transform,
-                    desc.mesh_index, /* instance id */
+                    desc.mesh_index, 
                     0xff,
                     0,
-                    /*ash::vk::GeometryInstanceFlagsKHR::TRIANGLE_FACING_CULL_DISABLE
-                    | */
+                    
                     ash::vk::GeometryInstanceFlagsKHR::FORCE_OPAQUE,
                     blas_address,
                 )
@@ -261,8 +254,6 @@ impl Device {
             .build();
 
         let max_primitive_counts = [instances.len() as u32];
-
-        // Create top-level acceleration structure
 
         self.create_ray_tracing_acceleration(
             vk::AccelerationStructureTypeKHR::TOP_LEVEL,
@@ -331,7 +322,7 @@ impl Device {
                         vk::BufferUsageFlags::STORAGE_BUFFER
                             | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
                     )
-                    // TODO: query minAccelerationStructureScratchOffsetAlignment
+                    
                     .alignment(256),
                     "Acceleration structure scratch buffer",
                     None,
@@ -346,7 +337,7 @@ impl Device {
                 let accel_raw = self
                 .acceleration_structure_ext
                 .create_acceleration_structure(&accel_info, None)
-                //.context("create_acceleration_structure")?;
+                
                 ?;
 
                 assert!(
@@ -439,11 +430,10 @@ impl Device {
 
             GeometryInstance::new(
                 transform,
-                desc.mesh_index, /* instance id */
+                desc.mesh_index, 
                 0xff,
                 0,
-                /*ash::vk::GeometryInstanceFlagsKHR::TRIANGLE_FACING_CULL_DISABLE
-                | */
+                
                 ash::vk::GeometryInstanceFlagsKHR::FORCE_OPAQUE,
                 blas_address,
             )
@@ -483,8 +473,6 @@ impl Device {
             .build();
 
         let max_primitive_counts = [instance_count as u32];
-
-        // Create top-level acceleration structure
 
         self.rebuild_ray_tracing_acceleration(
             cb,
@@ -585,7 +573,7 @@ impl Device {
                     group_count as _,
                     group_handles_size,
                 )
-                //.context("get_ray_tracing_shader_group_handles")
+                
                 ?
         };
 
@@ -723,13 +711,11 @@ pub fn create_ray_tracing_pipeline(
         })
         .collect::<Vec<_>>();
 
-    //log::info!("{:#?}", stage_layouts);
-
     let (descriptor_set_layouts, set_layout_info) = super::shader::create_descriptor_set_layouts(
         device,
         &merge_shader_stage_layouts(stage_layouts),
         vk::ShaderStageFlags::ALL,
-        //desc.descriptor_set_layout_flags.unwrap_or(&[]),  // TODO: merge flags
+        
         &desc.descriptor_set_opts,
     );
 
@@ -746,7 +732,6 @@ pub fn create_ray_tracing_pipeline(
         let mut shader_groups: Vec<vk::RayTracingShaderGroupCreateInfoKHR> = Vec::new();
         let mut shader_stages: Vec<vk::PipelineShaderStageCreateInfo> = Vec::new();
 
-        // Keep entry point names alive, since build() forgets references.
         let mut entry_points: Vec<std::ffi::CString> = Vec::new();
 
         let mut raygen_entry_count = 0;
@@ -875,7 +860,7 @@ pub fn create_ray_tracing_pipeline(
                 &[ash::vk::RayTracingPipelineCreateInfoKHR::builder()
                     .stages(&shader_stages)
                     .groups(&shader_groups)
-                    .max_pipeline_ray_recursion_depth(desc.max_pipeline_ray_recursion_depth) // TODO
+                    .max_pipeline_ray_recursion_depth(desc.max_pipeline_ray_recursion_depth) 
                     .layout(pipeline_layout)
                     .build()],
                 None,
@@ -911,7 +896,7 @@ pub fn create_ray_tracing_pipeline(
             common: ShaderPipelineCommon {
                 pipeline_layout,
                 pipeline,
-                //render_pass: desc.render_pass.clone(),
+                
                 set_layout_info,
                 descriptor_pool_sizes,
                 descriptor_set_layouts,

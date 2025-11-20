@@ -373,7 +373,7 @@ impl RenderGraph {
 
         Handle {
             raw: res,
-            // TODO: size
+            
             desc: ImageDesc::new_2d(vk::Format::R8G8B8A8_UNORM, [1, 1]),
             marker: PhantomData,
         }
@@ -382,7 +382,7 @@ impl RenderGraph {
 
 #[derive(Debug)]
 struct ResourceLifetime {
-    //first_access: Option<usize>,
+    
     last_access: Option<usize>,
 }
 
@@ -433,11 +433,11 @@ impl RenderGraph {
             .iter()
             .map(|res| match res {
                 GraphResourceInfo::Created(_) => ResourceLifetime {
-                    //first_access: None,
+                    
                     last_access: None,
                 },
                 GraphResourceInfo::Imported(_) => ResourceLifetime {
-                    //first_access: Some(0),
+                    
                     last_access: Some(0),
                 },
             })
@@ -480,7 +480,7 @@ impl RenderGraph {
                 let access_mask = get_access_info(res_access.access.access_type).access_mask;
 
                 match &self.resources[resource_index] {
-                    // Images
+                    
                     GraphResourceInfo::Created(GraphResourceCreateInfo {
                         desc: GraphResourceDesc::Image(_),
                         ..
@@ -493,7 +493,6 @@ impl RenderGraph {
                         image_usage_flags[res_access.handle.id as usize] |= image_usage;
                     }
 
-                    // Buffers
                     GraphResourceInfo::Created(GraphResourceCreateInfo {
                         desc: GraphResourceDesc::Buffer(_),
                         ..
@@ -505,7 +504,6 @@ impl RenderGraph {
                         buffer_usage_flags[res_access.handle.id as usize] |= buffer_usage;
                     }
 
-                    // Acceleration structures
                     GraphResourceInfo::Created(GraphResourceCreateInfo {
                         desc: GraphResourceDesc::RayTracingAcceleration(_),
                         ..
@@ -515,7 +513,7 @@ impl RenderGraph {
                     GraphResourceInfo::Imported(
                         GraphResourceImportInfo::RayTracingAcceleration { .. },
                     ) => {
-                        // TODO; not currently tracking usage flags for RT acceleration
+                        
                     }
                 };
             }
@@ -549,16 +547,6 @@ impl RenderGraph {
 
     pub fn compile(self, pipeline_cache: &mut PipelineCache) -> CompiledRenderGraph {
         let resource_info = self.calculate_resource_info();
-        // TODO: alias resources
-
-        /* println!(
-            "Resources: {:#?}",
-            self.resources
-                .iter()
-                .map(|info| info.desc)
-                .zip(resource_lifetimes.iter())
-                .collect::<Vec<_>>()
-        ); */
 
         let compute_pipelines = self
             .compute_pipelines
@@ -619,17 +607,14 @@ impl RenderGraph {
                     && desc.image_type == ImageType::Tex2d
             }
 
-            // Grab the first compatible image written by this pass
             let (src_handle, src_desc) = pass.write.iter().find_map(|src_ref| {
                 let src = &self.resources[src_ref.handle.id as usize];
                 match src {
-                    // Resources created by the render graph can be used as-is, as long as they have a color aspect
+                    
                     GraphResourceInfo::Created(GraphResourceCreateInfo {
                         desc: GraphResourceDesc::Image(img_desc),
                     }) if is_debug_compatible(img_desc) => Some((src_ref.handle, *img_desc)),
 
-                    // Imported resources must also support vk::ImageUsageFlags::SAMPLED because their
-                    // usage flags are supplied externally, and not derived by the graph
                     GraphResourceInfo::Imported(GraphResourceImportInfo::Image {
                         resource: img,
                         ..
@@ -676,7 +661,6 @@ fn image_access_mask_to_usage_flags(access_mask: vk::AccessFlags) -> vk::ImageUs
             vk::ImageUsageFlags::STORAGE
         }
 
-        // Appears with DepthAttachmentWriteStencilReadOnly
         _ if access_mask
             == vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ
                 | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE =>
@@ -827,9 +811,6 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
 
         let mut passes: Vec<_> = std::mem::take(&mut self.passes).into();
 
-        // At the start, transition all resources to the access type they're first used with
-        // While we don't have split barriers yet, this will remove some bubbles
-        // which would otherwise occur with temporal resources.
         {
             let mut resource_first_access_states: HashMap<u32, &mut PassResourceAccessType> =
                 HashMap::with_capacity(self.resources.len());
@@ -857,7 +838,6 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
                     "",
                 );
 
-                // Skip the sync when this pass is encountered later.
                 access.sync_type = PassResourceAccessSyncType::SkipSyncIfSameAccessType;
             }
         }
@@ -877,7 +857,6 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
     ) -> RetiredRenderGraph {
         let params = &self.resource_registry.execution_params;
 
-        // Transition exported images to the requested access types
         for (resource_idx, access_type) in self.exported_resources {
             if access_type != vk_sync::AccessType::Nothing {
                 let resource =
@@ -924,7 +903,6 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
     ) {
         let params = &resource_registry.execution_params;
 
-        // Record a crash marker just before this pass
         params
             .device
             .record_crash_marker(cb, format!("begin render pass {:?}", pass.name));
@@ -959,7 +937,7 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
                 transitions.push((
                     resource_ref.handle.id as usize,
                     resource_ref.access,
-                    //format!("read {i}"),
+                    
                 ));
             }
 
@@ -967,11 +945,9 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
                 transitions.push((
                     resource_ref.handle.id as usize,
                     resource_ref.access,
-                    //format!("write {i}"),
+                    
                 ));
             }
-
-            // TODO: optimize the barriers
 
             for (resource_idx, access) in transitions {
                 let resource = &mut resource_registry.resources[resource_idx];
@@ -981,7 +957,7 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
                     cb,
                     resource,
                     access,
-                    //pass.name == "raster simple",
+                    
                     false,
                     "",
                 );
@@ -1009,7 +985,7 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
         }
         #[cfg(not(feature = "gpu-profiler-enabled"))]
         {
-            let _ = vk_scope; // Suppress unused variable warning
+            let _ = vk_scope; 
         }
 
         if let Some(debug_utils) = params.device.debug_utils() {
@@ -1018,7 +994,6 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
             }
         }
 
-        // Record a crash marker just after this pass
         params
             .device
             .record_crash_marker(cb, format!("end render pass {:?}", pass.name));
@@ -1082,7 +1057,6 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
                 if debug {
                     log::info!("\t(buffer {:?})", buffer.desc);
                 }
-                //global_barrier(device, cb, &[resource.access_type], &[access.access_type]);
 
                 vk_sync::cmd::pipeline_barrier(
                     device.raw.fp_v1_0(),
@@ -1106,13 +1080,6 @@ impl<'exec_params, 'constants> ExecutingRenderGraph<'exec_params, 'constants> {
                 if debug {
                     log::info!("\t(bvh)");
                 }
-                /*global_barrier(
-                    device,
-                    cb,
-                    &[resource.access_type],
-                    &[access_type],
-                );*/
-                // TODO
 
                 resource.access_type = access.access_type;
             }
@@ -1183,7 +1150,7 @@ pub enum PassResourceAccessSyncType {
 
 #[derive(Copy, Clone)]
 pub struct PassResourceAccessType {
-    // TODO: multiple
+    
     access_type: vk_sync::AccessType,
     sync_type: PassResourceAccessSyncType,
 }

@@ -1,4 +1,4 @@
-// Used to support Dear Imgui, though could be used for other immediate-mode rendering too
+
 
 use std::sync::Arc;
 

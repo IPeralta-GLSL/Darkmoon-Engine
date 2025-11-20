@@ -12,7 +12,7 @@ use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use parking_lot::Mutex;
 
 struct GfxResources {
-    //imgui_render_pass: RenderPass,
+    
     pub imgui_render_pass: vk::RenderPass,
     pub imgui_framebuffer: vk::Framebuffer,
     pub imgui_texture: Arc<Image>,
@@ -45,9 +45,8 @@ impl ImGuiBackend {
 
             let hidpi_factor = window.scale_factor();
             let font_size = (13.0 * hidpi_factor) as f32;
-            let icon_font_size = font_size * 2.0 / 3.0; // Font Awesome needs to be smaller
-            
-            // Load Font Awesome icons data
+            let icon_font_size = font_size * 2.0 / 3.0; 
+
             let fa_data = include_bytes!("../../../../assets/fonts/fa-solid-900.otf");
             let icon_ranges = FontGlyphRanges::from_slice(&[0xe000, 0xf8ff, 0]);
             
@@ -119,8 +118,7 @@ impl ImGuiBackend {
 
         if let Some(gfx) = inner.gfx.take() {
             unsafe {
-                // TODO
-                //device.destroy_render_pass(gfx.imgui_render_pass, None);
+
                 device.destroy_framebuffer(gfx.imgui_framebuffer, None);
             }
         }
@@ -156,24 +154,20 @@ impl ImGuiBackend {
         imgui: &mut imgui::Context,
         ui_renderer: &mut UiRenderer,
     ) {
-        // In ImGui 0.11, we need to call render() to complete the frame
-        let draw_data = imgui.render();
         
-        // Debug logging for GUI rendering
+        let draw_data = imgui.render();
+
         log::info!("ImGui finish_frame: draw_data has {} draw lists, display_size=[{:.1}, {:.1}]",
             draw_data.draw_lists_count(),
             draw_data.display_size[0],
             draw_data.display_size[1]
         );
-        
-        // Extract the data we need before moving into closure
+
         let physical_size = [
             draw_data.display_size[0] as u32,
             draw_data.display_size[1] as u32,
         ];
-        
-        // We need to copy draw_data for the closure. Since DrawData doesn't implement Clone,
-        // we'll use unsafe transmute to extend its lifetime for the render callback.
+
         let ui_draw_data: &'static imgui::DrawData = unsafe { std::mem::transmute(draw_data) };
         
         let ui_target_image = self.inner.lock().get_target_image().unwrap();
@@ -193,7 +187,7 @@ impl ImGuiBackend {
                 
                 match result {
                     Some(_) => Ok(()),
-                    None => Ok(()), // Still return Ok even if no image returned
+                    None => Ok(()), 
                 }
             }),
             ui_target_image,
@@ -236,17 +230,6 @@ impl ImGuiBackendInner {
 
         match self.gfx {
             Some(ref gfx) => {
-                /*record_image_barrier(
-                    self.device.as_ref(),
-                    cb,
-                    ImageBarrier::new(
-                        gfx.imgui_texture.raw,
-                        vk_sync::AccessType::Nothing,
-                        vk_sync::AccessType::ColorAttachmentWrite,
-                        vk::ImageAspectFlags::COLOR,
-                    )
-                    .with_discard(true),
-                );*/
 
                 self.imgui_renderer.begin_frame(device, cb);
 
@@ -283,17 +266,6 @@ impl ImGuiBackendInner {
                 unsafe {
                     device.cmd_end_render_pass(cb);
                 }
-
-                /*record_image_barrier(
-                    self.device.as_ref(),
-                    cb,
-                    ImageBarrier::new(
-                        gfx.imgui_texture.raw,
-                        vk_sync::AccessType::ColorAttachmentWrite,
-                        vk_sync::AccessType::ComputeShaderReadSampledImageOrUniformTexelBuffer,
-                        vk::ImageAspectFlags::COLOR,
-                    ),
-                );*/
 
                 Some(gfx.imgui_texture.clone())
             }
@@ -346,7 +318,6 @@ fn create_imgui_framebuffer(
     render_pass: vk::RenderPass,
     surface_resolution: [u32; 2],
 ) -> (vk::Framebuffer, Arc<Image>) {
-    //let surface_resolution = vk_state.swapchain.as_ref().unwrap().surface_resolution;
 
     let tex = device
         .create_image(
@@ -374,7 +345,6 @@ fn create_imgui_framebuffer(
     (fb, Arc::new(tex))
 }
 
-// Based on https://github.com/ocornut/imgui/issues/707#issuecomment-430613104
 fn setup_imgui_style(ctx: &mut imgui::Context) {
 
     let hi = |v: f32| [0.3, 0.6, 0.3, v];
@@ -411,9 +381,7 @@ fn setup_imgui_style(ctx: &mut imgui::Context) {
     style.colors[imgui::StyleColor::Header as usize] = med(0.76);
     style.colors[imgui::StyleColor::HeaderHovered as usize] = med(0.86);
     style.colors[imgui::StyleColor::HeaderActive as usize] = hi(1.00);
-    //style.colors[imgui::StyleColor::Column as usize] = [0.14, 0.16, 0.19, 1.00];
-    //style.colors[imgui::StyleColor::ColumnHovered as usize] = med(0.78);
-    //style.colors[imgui::StyleColor::ColumnActive as usize] = med(1.00);
+
     style.colors[imgui::StyleColor::ResizeGrip as usize] = [0.47, 0.77, 0.83, 0.04];
     style.colors[imgui::StyleColor::ResizeGripHovered as usize] = med(0.78);
     style.colors[imgui::StyleColor::ResizeGripActive as usize] = med(1.00);

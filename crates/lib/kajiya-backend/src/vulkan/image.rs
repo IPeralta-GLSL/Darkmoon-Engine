@@ -33,7 +33,7 @@ pub struct ImageDesc {
 }
 
 fn mip_count_1d(extent: u32) -> u16 {
-    // floor(log2(extent)) + 1
+    
     (32 - extent.leading_zeros()) as u16
 }
 
@@ -165,7 +165,7 @@ pub struct Image {
     pub raw: vk::Image,
     pub desc: ImageDesc,
     pub views: Mutex<HashMap<ImageViewDesc, vk::ImageView>>,
-    //allocation: gpu_allocator::SubAllocation,
+    
 }
 unsafe impl Send for Image {}
 unsafe impl Sync for Image {}
@@ -203,7 +203,7 @@ impl Image {
                 desc.view_type
                     .unwrap_or_else(|| convert_image_type_to_view_type(image_desc.image_type)),
             )
-            // TODO
+            
             .subresource_range(vk::ImageSubresourceRange {
                 aspect_mask: desc.aspect_mask,
                 base_mip_level: desc.base_mip_level,
@@ -231,7 +231,7 @@ pub struct ImageViewDesc {
     pub base_mip_level: u32,
     #[builder(default = "None")]
     pub level_count: Option<u32>,
-    // TODO
+    
 }
 
 impl ImageViewDesc {
@@ -256,15 +256,6 @@ impl Device {
 
         let create_info = get_image_create_info(&desc, !initial_data.is_empty());
 
-        /*let allocation_info = vk_mem::AllocationCreateInfo {
-            usage: vk_mem::MemoryUsage::GpuOnly,
-            ..Default::default()
-        };
-
-        let (image, allocation, _allocation_info) = self
-            .global_allocator
-            .create_image(&create_info, &allocation_info)?;*/
-
         let image = unsafe {
             self.raw
                 .create_image(&create_info, None)
@@ -286,7 +277,6 @@ impl Device {
                 name: "GpuOnly image".into(),
             })?;
 
-        // Bind memory to the image
         unsafe {
             self.raw
                 .bind_image_memory(image, allocation.memory(), allocation.offset())
@@ -349,14 +339,9 @@ impl Device {
                     offset += sub.data.len();
                     let region = region.build();
 
-                    //dbg!(region);
-                    //dbg!(total_initial_data_bytes);
-
                     region
                 })
                 .collect::<Vec<_>>();
-
-            // println!("regions: {:#?}", buffer_copy_regions);
 
             let copy_result = self.with_setup_cb(|cb| unsafe {
                 super::barrier::record_image_barrier(
@@ -396,15 +381,9 @@ impl Device {
             copy_result?;
         }
 
-        /*        let handle = self.storage.insert(Image {
-            raw: image,
-            allocation,
-        });
-
-        ImageHandle(handle)*/
         Ok(Image {
             raw: image,
-            //allocation,
+            
             desc,
             views: Default::default(),
         })
@@ -433,13 +412,6 @@ impl Device {
         Ok(unsafe { self.raw.create_image_view(&create_info, None)? })
     }
 
-    /*pub fn get(&self, handle: ImageHandle) -> &Image {
-        self.storage.get(handle.0)
-    }
-
-    pub fn maintain(&mut self) {
-        self.storage.maintain()
-    }*/
 }
 
 pub fn convert_image_type_to_view_type(image_type: ImageType) -> vk::ImageViewType {
@@ -534,7 +506,7 @@ pub fn get_image_create_info(desc: &ImageDesc, initial_data: bool) -> vk::ImageC
         extent: image_extent,
         mip_levels: desc.mip_levels as u32,
         array_layers: image_layers,
-        samples: vk::SampleCountFlags::TYPE_1, // TODO: desc.sample_count
+        samples: vk::SampleCountFlags::TYPE_1, 
         tiling: desc.tiling,
         usage: image_usage,
         sharing_mode: vk::SharingMode::EXCLUSIVE,

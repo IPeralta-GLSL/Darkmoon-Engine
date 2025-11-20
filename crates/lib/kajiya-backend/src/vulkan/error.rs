@@ -12,7 +12,7 @@ pub(crate) struct CrashMarkerNames {
 
 impl CrashMarkerNames {
     fn insert_name(&mut self, name: String) -> u32 {
-        // TODO: retire those with frames
+        
         let idx = self.next_idx;
         let small_idx = idx % 4096;
 
@@ -49,8 +49,7 @@ impl Device {
             ..
         } = &err
         {
-            // Something went very wrong. Find the last marker which was successfully written
-            // to the crash tracking buffer, and report its corresponding name.
+
             let last_marker = self
                 .crash_tracking_buffer
                 .allocation

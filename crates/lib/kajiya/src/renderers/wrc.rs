@@ -7,7 +7,6 @@ use rg::BindToSimpleRenderPass;
 
 use super::ircache::IrcacheRenderState;
 
-// Must match `wrc_settings.hlsl`
 const WRC_GRID_DIMS: [usize; 3] = [8, 3, 8];
 const WRC_PROBE_DIMS: usize = 32;
 const WRC_ATLAS_PROBE_COUNT: [usize; 2] = [16, 16];

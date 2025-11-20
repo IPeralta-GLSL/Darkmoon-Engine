@@ -1,21 +1,16 @@
 pub fn set_up_logging(default_log_level: log::LevelFilter) -> anyhow::Result<()> {
     use fern::colors::{Color, ColoredLevelConfig};
 
-    // configure colors for the whole line
     let colors_line = ColoredLevelConfig::new()
         .error(Color::Red)
         .warn(Color::Yellow)
-        // we actually don't need to specify the color for debug and info, they are white by default
+        
         .info(Color::White)
         .debug(Color::White)
-        // depending on the terminals color scheme, this is the same as the background color
+        
         .trace(Color::BrightBlack);
 
-    // configure colors for the name of the level.
-    // since almost all of them are the some as the color for the whole line, we
-    // just clone `colors_line` and overwrite our changes
     let colors_level = colors_line.info(Color::Green);
-    // here we set up our fern Dispatch
 
     let console_out = fern::Dispatch::new()
         .format(move |out, message, record| {
@@ -31,15 +26,9 @@ pub fn set_up_logging(default_log_level: log::LevelFilter) -> anyhow::Result<()>
                 message = message,
             ));
         })
-        // set the default log level. to filter out verbose log messages from dependencies, set
-        // this to Warn and overwrite the log level for your crate.
+
         .level(default_log_level)
-        // change log levels for individual modules. Note: This looks for the record's target
-        // field which defaults to the module path but can be overwritten with the `target`
-        // parameter:
-        // `info!(target="special_target", "This log message is about special_target");`
-        // .level_for("kajiya::device", log::LevelFilter::Trace)
-        // output to stdout
+
         .chain(std::io::stdout());
 
     let file_out = fern::Dispatch::new()

@@ -19,7 +19,7 @@ pub fn trace_sun_shadow_mask(
         rg.add_pass("trace shadow mask"),
         ShaderSource::hlsl("/shaders/rt/trace_sun_shadow_mask.rgen.hlsl"),
         [
-            // Duplicated because `rt.hlsl` hardcodes miss index to 1
+            
             ShaderSource::hlsl("/shaders/rt/shadow.rmiss.hlsl"),
             ShaderSource::hlsl("/shaders/rt/shadow.rmiss.hlsl"),
         ],

@@ -41,7 +41,7 @@ fn process_upsample_sample(
         normal_factor *= normal_factor;
 
         let mut w = 1.0;
-        w *= depth_factor; // TODO: differentials
+        w *= depth_factor; 
         w *= normal_factor;
         w *= (-soffset.dot(soffset)).exp();
 
@@ -69,7 +69,7 @@ fn process_spatial_filter_sample(
         normal_factor *= normal_factor;
 
         let mut w = 1.0;
-        w *= depth_factor; // TODO: differentials
+        w *= depth_factor; 
         w *= normal_factor;
 
         *w_sum += w;
@@ -264,7 +264,7 @@ fn fetch_normal_vs(
     let px = (output_tex_size * uv).as_uvec2();
     let normal_vs: Vec4 = view_normal_tex.fetch(px);
     (normal_vs.xyz() * 2.0) - Vec3::splat(1.0)
-    //normal_vs.xyz()
+    
 }
 
 fn integrate_half_arc(h1: f32, n: f32) -> f32 {
@@ -342,7 +342,6 @@ fn process_ssgi_sample(
                     fetch_normal_vs(cs_to_uv(sample_cs.xy()), output_tex_size, view_normal_tex);
                 let mut theta_cos_prev_trunc = theta_cos_prev;
 
-                // Account for the sampled surface's normal, and how it's facing the center pixel
                 if i > 0 {
                     let p1 = *prev_sample_vs
                         * intersect_dir_plane_onesided(
@@ -362,7 +361,6 @@ fn process_ssgi_sample(
                         .clamp(theta_cos_prev_trunc, theta_cos_max);
                 }
 
-                // Scale the lighting contribution by the cosine factor
                 {
                     n_angle *= -intsgn;
 
@@ -385,7 +383,7 @@ fn process_ssgi_sample(
 
         *prev_sample_vs = sample_vs;
     } else {
-        // Sky; assume no occlusion
+        
         theta_cos_max = update_horizion_angle(theta_cos_max, -1.0, 1.0);
     }
 
@@ -407,7 +405,6 @@ pub fn ssgi_cs(
     #[spirv(uniform, descriptor_set = 2, binding = 0)] frame_constants: &FrameConstants,
     #[spirv(global_invocation_id)] px: UVec3,
 ) {
-    /* Settings */
 
     let uv = get_uv_u(px.xy(), constants.output_tex_size);
 
@@ -461,7 +458,7 @@ pub fn ssgi_cs(
     );
 
     let kernel_radius_shrinkage = {
-        // Convert AO radius into world scale
+        
         let cs_kernel_radius_scaled = if constants.use_kernel_distance_scaling == 1 {
             kernel_radius_cs
                 * frame_constants
@@ -475,12 +472,10 @@ pub fn ssgi_cs(
 
         cs_slice_dir *= cs_kernel_radius_scaled;
 
-        // Calculate AO radius shrinkage (if camera is too close to a surface)
         let max_kernel_radius_cs = constants.max_kernel_radius_cs;
         1.0f32.min(max_kernel_radius_cs / cs_kernel_radius_scaled)
     };
 
-    // Shrink the AO radius
     cs_slice_dir *= kernel_radius_shrinkage;
     let kernel_radius_vs = kernel_radius_cs * kernel_radius_shrinkage * -ray_hit_vs.z;
 
@@ -589,10 +584,6 @@ pub fn ssgi_cs(
     };
 
     col *= slice_contrib_weight;
-
-    /*float bent_normal_angle = h1p + h2p - n_angle * 2;
-    float3 bent_normal_dir = sin(bent_normal_angle) * cross(slice_normal_vs, normal_vs) + cos(bent_normal_angle) * normal_vs;
-    bent_normal_dir = bent_normal_dir;*/
 
     unsafe {
         output_tex.write(px.truncate(), col);

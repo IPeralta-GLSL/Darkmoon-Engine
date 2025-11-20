@@ -27,7 +27,6 @@ pub enum AnyRenderResource {
     ImportedBuffer(Arc<Buffer>),
     ImportedRayTracingAcceleration(Arc<RayTracingAcceleration>),
 
-    // Must be replaced before access. Used to late-update swapchain resources.
     Pending(PendingRenderResourceInfo),
 }
 

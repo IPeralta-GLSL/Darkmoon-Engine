@@ -1,7 +1,5 @@
 use std::path::{Path, PathBuf};
 
-/// Given an absolute path, returns the VFS path (with mount point) if it matches a mount point.
-/// Example: /home/user/project/assets/meshes/floor/textures/foo.png -> /meshes/floor/textures/foo.png
 pub fn to_vfs_path(abs_path: &Path) -> Option<PathBuf> {
     let mounts = [
         ("/meshes", "assets/meshes"),

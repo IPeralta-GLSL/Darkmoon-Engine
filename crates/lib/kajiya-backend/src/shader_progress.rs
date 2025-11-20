@@ -47,12 +47,11 @@ impl ShaderCompilationProgress {
     }
 }
 
-/// Global shader compilation progress tracker
 pub struct ShaderProgressTracker {
     progress: Arc<Mutex<ShaderCompilationProgress>>,
-    shader_states: HashMap<String, bool>, // shader_path -> is_compiled
+    shader_states: HashMap<String, bool>, 
     pipeline_compilation_active: bool,
-    // Frame-based tracking for pipeline compilation
+    
     frames_since_last_compilation: u32,
     pipeline_compilation_cooldown_frames: u32,
     total_pipelines_compiled_this_session: u32,
@@ -65,7 +64,7 @@ impl ShaderProgressTracker {
             shader_states: HashMap::new(),
             pipeline_compilation_active: false,
             frames_since_last_compilation: 0,
-            pipeline_compilation_cooldown_frames: 60, // Wait 60 frames (~1 second at 60fps) after last compilation
+            pipeline_compilation_cooldown_frames: 60, 
             total_pipelines_compiled_this_session: 0,
         }
     }
@@ -101,8 +100,7 @@ impl ShaderProgressTracker {
 
             progress.current_shader = None;
             let all_processed = progress.completed_shaders + progress.failed_shaders.len() >= progress.total_shaders;
-            
-            // Only mark as complete if all shaders are processed AND pipeline compilation is not active
+
             progress.is_complete = all_processed && !self.pipeline_compilation_active;
         }
     }
@@ -110,8 +108,7 @@ impl ShaderProgressTracker {
     pub fn set_pipeline_compilation_active(&mut self, active: bool) {
         log::debug!("Setting pipeline compilation active: {}", active);
         self.pipeline_compilation_active = active;
-        
-        // Reset frame counter when compilation becomes active
+
         if active {
             self.frames_since_last_compilation = 0;
         }
@@ -119,8 +116,7 @@ impl ShaderProgressTracker {
         if let Ok(mut progress) = self.progress.lock() {
             let all_processed = progress.completed_shaders + progress.failed_shaders.len() >= progress.total_shaders;
             progress.is_complete = all_processed && !active;
-            
-            // If pipeline compilation is starting, make sure we're not in simulation mode anymore
+
             if active && progress.is_simulation_mode {
                 log::info!("Pipeline compilation starting, disabling simulation mode");
                 progress.is_simulation_mode = false;
@@ -128,28 +124,24 @@ impl ShaderProgressTracker {
         }
     }
 
-    /// Call this each frame to update the pipeline compilation tracking.
-    /// This should be called from the main render loop.
     pub fn update_frame(&mut self, pipelines_compiled_this_frame: u32) {
         if pipelines_compiled_this_frame > 0 {
-            // Reset counter - we had compilation activity this frame
+            
             self.frames_since_last_compilation = 0;
             self.total_pipelines_compiled_this_session += pipelines_compiled_this_frame;
             log::debug!("Compiled {} pipelines this frame (total: {})", 
                 pipelines_compiled_this_frame, self.total_pipelines_compiled_this_session);
         } else if self.pipeline_compilation_active {
-            // Increment counter - no compilation this frame
+            
             self.frames_since_last_compilation += 1;
         }
 
-        // Check if we should mark compilation as finished based on cooldown
         if self.pipeline_compilation_active && 
            self.frames_since_last_compilation >= self.pipeline_compilation_cooldown_frames {
             log::info!("Pipeline compilation cooldown complete after {} frames with no activity. Total pipelines compiled: {}",
                 self.frames_since_last_compilation, self.total_pipelines_compiled_this_session);
             self.pipeline_compilation_active = false;
-            
-            // Update progress completion status
+
             if let Ok(mut progress) = self.progress.lock() {
                 let all_processed = progress.completed_shaders + progress.failed_shaders.len() >= progress.total_shaders;
                 progress.is_complete = all_processed;
@@ -157,10 +149,8 @@ impl ShaderProgressTracker {
         }
     }
 
-    /// Check if we should force-finish compilation based on total compiled pipelines.
-    /// This is a fallback for cases where the cooldown might not work properly.
     pub fn should_force_finish_compilation(&self) -> bool {
-        // If we've compiled a substantial number of pipelines, we might be done
+        
         self.total_pipelines_compiled_this_session > 50 && 
         self.frames_since_last_compilation > 30
     }
@@ -200,27 +190,23 @@ impl ShaderProgressTracker {
     }
 }
 
-// Global static instance
 lazy_static::lazy_static! {
     pub static ref GLOBAL_SHADER_PROGRESS: Arc<Mutex<ShaderProgressTracker>> = 
         Arc::new(Mutex::new(ShaderProgressTracker::new()));
 }
 
-/// Initialize real shader compilation, clearing any simulation data
 pub fn start_real_compilation() {
     if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
         tracker.reset_for_real_compilation();
     }
 }
 
-/// Update frame tracking for pipeline compilation (call this each frame from main render loop)
 pub fn update_pipeline_compilation_frame(pipelines_compiled_this_frame: u32) {
     if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
         tracker.update_frame(pipelines_compiled_this_frame);
     }
 }
 
-/// Check if compilation (real or simulated) is currently active
 pub fn is_compilation_active() -> bool {
     if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
         if let Ok(progress) = tracker.get_progress().lock() {
@@ -230,17 +216,15 @@ pub fn is_compilation_active() -> bool {
     false
 }
 
-/// Check if compilation (real or simulated) is currently active or if system shows signs of heavy shader work
 pub fn is_compilation_or_heavy_work_active() -> bool {
-    // First check normal compilation state
+    
     if is_compilation_active() {
         return true;
     }
-    
-    // Additional heuristic: if we have some shaders registered but system might be working
+
     if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
         if let Ok(progress) = tracker.get_progress().lock() {
-            // If we recently had shaders and pipeline compilation was active, be conservative
+            
             if progress.total_shaders > 0 && tracker.is_pipeline_compilation_active() {
                 return true;
             }

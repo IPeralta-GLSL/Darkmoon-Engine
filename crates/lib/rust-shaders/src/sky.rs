@@ -1,4 +1,4 @@
-// not used
+
 
 #![allow(unreachable_code)]
 #![allow(unused_variables)]
@@ -12,8 +12,6 @@ use spirv_std::Image;
 use spirv_std::macros::spirv;
 
 fn atmosphere_default(wi: Vec3, light_dir: Vec3, light_color: Vec3) -> Vec3 {
-    //return Vec3::ZERO;
-    //return Vec3::splat(0.5);
 
     let world_space_camera_pos = Vec3::ZERO;
     let ray_start = world_space_camera_pos;

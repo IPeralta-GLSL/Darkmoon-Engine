@@ -65,7 +65,7 @@ impl LazyWorker for LoadImage {
 
     async fn run(self, ctx: RunContext) -> Self::Output {
         let bytes: Bytes = match self {
-            // Note: `Bytes` does internal reference counting, so this clone is cheap
+            
             LoadImage::Lazy(bytes) => Bytes::clone(bytes.eval(&ctx).await?.as_ref()),
             LoadImage::Immediate(bytes) => bytes,
         };
@@ -253,7 +253,7 @@ impl CreateGpuImage {
             desc = desc.all_mip_levels();
 
             let downsample = |image: &DynamicImage| {
-                // TODO: gamma-correct resize
+                
                 image.resize_exact(
                     round_up_to_block(image.dimensions().0 / 2),
                     round_up_to_block(image.dimensions().1 / 2),
@@ -294,7 +294,6 @@ impl CreateGpuImage {
         let dds_data = dds.get_data(0).unwrap();
         let mut byte_offset = 0usize;
 
-        // 1 for regular, 4 for BC
         let pitch_height = dds.get_pitch_height();
 
         let mips: Vec<Vec<u8>> = (0..dds.get_num_mipmap_levels())
@@ -336,7 +335,6 @@ impl CreateGpuImage {
     }
 }
 
-// From `ddsfile`, with some modifications
 mod dds_util {
     pub fn get_texture_size(pitch: u32, pitch_height: u32, height: u32, depth: u32) -> usize {
         let row_height = (height + (pitch_height - 1)) / pitch_height;
@@ -344,14 +342,13 @@ mod dds_util {
     }
 
     pub fn get_pitch(dds: &ddsfile::Dds, width: u32) -> Option<u32> {
-        // Try format first
+        
         if let Some(format) = dds.get_format() {
             if let Some(pitch) = format.get_pitch(width) {
                 return Some(pitch);
             }
         }
 
-        // Then try to calculate it ourselves
         if let Some(bpp) = dds.get_bits_per_pixel() {
             return Some((bpp * width + 7) / 8);
         }

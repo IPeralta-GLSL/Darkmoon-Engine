@@ -44,7 +44,7 @@ pub struct Renderer {
 
 lazy_static::lazy_static! {
     static ref FRAME_CONSTANTS_LAYOUT: HashMap<u32, rspirv_reflect::DescriptorInfo> = [
-    // frame_constants
+    
     (
         0,
         rspirv_reflect::DescriptorInfo {
@@ -53,7 +53,7 @@ lazy_static::lazy_static! {
             name: Default::default(),
         },
     ),
-    // instance_dynamic_parameters_dyn
+    
     (
         1,
         rspirv_reflect::DescriptorInfo {
@@ -62,7 +62,7 @@ lazy_static::lazy_static! {
             name: Default::default(),
         },
     ),
-    // triangle_lights_dyn
+    
     (
         2,
         rspirv_reflect::DescriptorInfo {
@@ -131,7 +131,6 @@ impl Renderer {
 
         let current_frame = self.device.begin_frame();
 
-        // Both command buffers are accessible now, so begin recording.
         for cb in [
             &current_frame.main_command_buffer,
             &current_frame.presentation_command_buffer,
@@ -151,12 +150,10 @@ impl Renderer {
             }
         }
 
-        // Now that we can write to GPU data, prepare global frame constants.
         let frame_constants_layout = prepare_frame_constants(&mut self.dynamic_constants);
 
         let mut executing_rg: ExecutingRenderGraph;
 
-        // Record and submit the main command buffer
         {
             let main_cb = &current_frame.main_command_buffer;
 
@@ -181,7 +178,6 @@ impl Renderer {
                 )
             };
 
-            // Record and submit the main command buffer
             unsafe {
                 puffin::profile_scope!("main cb");
 
@@ -202,7 +198,6 @@ impl Renderer {
 
                 puffin::profile_scope!("submit main cb");
 
-                // Try to submit the command buffer to the GPU. We might encounter a GPU crash.
                 raw_device
                     .queue_submit(
                         self.device.universal_queue.raw,
@@ -214,21 +209,16 @@ impl Renderer {
             };
         }
 
-        // Now that we've done the main submission and the GPU is busy, acquire the presentation image.
-        // This can block, so we're doing it as late as possible.
-
         let swapchain_image = swapchain
             .acquire_next_image()
             .ok()
             .expect("swapchain image");
 
-        // Execute the rest of the render graph, and submit the presentation command buffer.
         let retired_rg = {
             puffin::profile_scope!("presentation cb");
 
             let presentation_cb = &current_frame.presentation_command_buffer;
 
-            // Transition the swapchain to CS write
             vulkan::barrier::record_image_barrier(
                 device,
                 presentation_cb.raw,
@@ -244,7 +234,6 @@ impl Renderer {
             let retired_rg =
                 executing_rg.record_presentation_cb(presentation_cb, swapchain_image.image.clone());
 
-            // Transition the swapchain to present
             vulkan::barrier::record_image_barrier(
                 device,
                 presentation_cb.raw,
@@ -261,7 +250,6 @@ impl Renderer {
                 .profiler_data
                 .end_frame(&device.raw, presentation_cb.raw);
 
-            // Record and submit the presentation command buffer
             unsafe {
                 raw_device.end_command_buffer(presentation_cb.raw).unwrap();
 
@@ -306,7 +294,6 @@ impl Renderer {
         self.device.finish_frame(current_frame);
     }
 
-    // Descriptor set for per-frame data
     fn create_frame_descriptor_set(
         backend: &RenderBackend,
         dynamic_constants: &Buffer,
@@ -329,21 +316,21 @@ impl Renderer {
                 .create_descriptor_set_layout(
                     &vk::DescriptorSetLayoutCreateInfo::builder()
                         .bindings(&[
-                            // frame_constants
+                            
                             vk::DescriptorSetLayoutBinding::builder()
                                 .descriptor_count(1)
                                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
                                 .stage_flags(vk::ShaderStageFlags::ALL)
                                 .binding(0)
                                 .build(),
-                            // instance_dynamic_parameters
+                            
                             vk::DescriptorSetLayoutBinding::builder()
                                 .descriptor_count(1)
                                 .descriptor_type(vk::DescriptorType::STORAGE_BUFFER_DYNAMIC)
                                 .stage_flags(vk::ShaderStageFlags::ALL)
                                 .binding(1)
                                 .build(),
-                            // triangle_lights_dyn
+                            
                             vk::DescriptorSetLayoutBinding::builder()
                                 .descriptor_count(1)
                                 .descriptor_type(vk::DescriptorType::STORAGE_BUFFER_DYNAMIC)
@@ -401,21 +388,21 @@ impl Renderer {
                 .build();
 
             let descriptor_set_writes = [
-                // `frame_constants`
+                
                 vk::WriteDescriptorSet::builder()
                     .dst_binding(0)
                     .dst_set(set)
                     .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
                     .buffer_info(std::slice::from_ref(&uniform_buffer_info))
                     .build(),
-                // `instance_dynamic_parameters_dyn`
+                
                 vk::WriteDescriptorSet::builder()
                     .dst_binding(1)
                     .dst_set(set)
                     .descriptor_type(vk::DescriptorType::STORAGE_BUFFER_DYNAMIC)
                     .buffer_info(std::slice::from_ref(&storage_buffer_info))
                     .build(),
-                // `triangle_lights_dyn`
+                
                 vk::WriteDescriptorSet::builder()
                     .dst_binding(2)
                     .dst_set(set)
@@ -461,15 +448,11 @@ impl Renderer {
 
         match self.pipeline_cache.prepare_frame(&self.device) {
             Ok(()) => {
-                // If the frame preparation succeded, update stored temporal rg state and finish
+                
                 self.temporal_rg_state = TemporalRg::Exported(temporal_rg_state);
                 Ok(())
             }
             Err(err) => {
-                // If frame preparation failed, we're not going to render anything, but we've potentially created
-                // some temporal resources, and we can reuse them in the next attempt.
-                //
-                // Import any new resources into our temporal rg state, but reset their access modes.
 
                 let self_temporal_rg_state = match &mut self.temporal_rg_state {
                     TemporalRg::Inert(state) => state,
@@ -477,7 +460,7 @@ impl Renderer {
                 };
 
                 for (res_key, res) in temporal_rg_state.0.resources {
-                    // `insert` is infrequent here, and we can avoid cloning the key.
+                    
                     #[allow(clippy::map_entry)]
                     if !self_temporal_rg_state.resources.contains_key(&res_key) {
                         let res = match res {

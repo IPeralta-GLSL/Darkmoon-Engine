@@ -154,8 +154,6 @@ impl VrsManager {
             }
         }
 
-        // Para simplificar, asumimos que tenemos un buffer staging disponible
-        // En implementación real, necesitarías un staging buffer apropiado
     }
 
     pub fn get_shading_rate_image_view(&self) -> Option<vk::ImageView> {

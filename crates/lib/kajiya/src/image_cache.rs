@@ -60,7 +60,7 @@ impl LazyWorker for UploadGpuImage {
             );
 
             let downsample = |image: &DynamicImage| {
-                // TODO: gamma-correct resize
+                
                 image.resize_exact(
                     (image.dimensions().0 / 2).max(1),
                     (image.dimensions().1 / 2).max(1),

@@ -5,20 +5,6 @@ use ash::vk::{self, PhysicalDeviceMemoryProperties, PhysicalDeviceProperties};
 use log::{debug, error, info, trace, warn};
 use std::sync::Arc;
 
-/// Properties of the physical device.
-/*#[derive(Clone, Debug)]
-pub struct PhysicalDeviceProperties {
-    pub api_version: u32,
-    pub driver_version: u32,
-    pub vendor_id: u32,
-    pub device_id: u32,
-    pub device_type: vk::PhysicalDeviceType,
-    pub device_name: String,
-    pub pipeline_cache_uuid: [u8; 16],
-    pub limits: vk::PhysicalDeviceLimits,
-    pub sparse_properties: vk::PhysicalDeviceSparseProperties,
-}*/
-
 #[derive(Copy, Clone)]
 pub struct QueueFamily {
     pub index: u32,
@@ -48,20 +34,6 @@ pub fn enumerate_physical_devices(instance: &Arc<Instance>) -> Result<Vec<Physic
             .into_iter()
             .map(|pdevice| {
                 let properties = instance.raw.get_physical_device_properties(pdevice);
-                /*let properties = PhysicalDeviceProperties {
-                    api_version: properties.api_version,
-                    driver_version: properties.driver_version,
-                    vendor_id: properties.vendor_id,
-                    device_id: properties.device_id,
-                    device_type: properties.device_type,
-                    device_name: CStr::from_ptr(&properties.device_name[0])
-                        .to_str()
-                        .unwrap()
-                        .to_string(),
-                    pipeline_cache_uuid: properties.pipeline_cache_uuid,
-                    limits: properties.limits,
-                    sparse_properties: properties.sparse_properties,
-                };*/
 
                 let queue_families = instance
                     .raw

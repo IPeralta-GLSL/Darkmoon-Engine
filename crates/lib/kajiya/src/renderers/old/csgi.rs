@@ -1,4 +1,4 @@
-// Cone sweep global illumination prototype
+
 
 use std::sync::Arc;
 
@@ -22,18 +22,11 @@ use rust_shaders_shared::frame_constants::GiCascadeConstants;
 
 use super::GbufferDepth;
 
-// VOLUME_DIMS and CASCADE_COUNT must match GPU code.
-// Seach token: d4109bba-438f-425e-8667-19e591be9a56
 pub const VOLUME_DIMS: u32 = 64;
 pub const CASCADE_COUNT: usize = 1;
 const SCROLL_CASCADES: bool = false;
 const VOLUME_WORLD_SCALE_MULT: f32 = 1.0;
-//pub const VOLUME_DIMS: u32 = 40;
-//pub const CASCADE_COUNT: usize = 4;
-//const SCROLL_CASCADES: bool = true;
-//const VOLUME_WORLD_SCALE_MULT: f32 = 0.5;
 
-// Search token: b518ed19-c715-4cc7-9bc7-e0dbbca3e037
 const CASCADE_EXP_SCALING_RATIO: f32 = 2.0;
 
 pub struct CsgiRenderer {
@@ -91,12 +84,9 @@ impl CsgiRenderer {
     }
 
     pub fn update_eye_position(&mut self, eye_position: &Vec3, gi_scale: f32) {
-        // The grid is shifted, so the _center_ and not _origin_ of cascade 0 is at origin.
-        // This moves the seams in the origin-centered grid away from origin.
-        // Must match GPU code. Search token: 3e7ddeec-afbb-44e4-8b75-b54276c6df2b
+
         let grid_offset_world_space: f32 = -Self::voxel_size(gi_scale) * (VOLUME_DIMS as f32 / 2.0);
 
-        // Transform the eye position to the grid-local space
         let eye_position = *eye_position - grid_offset_world_space;
 
         let cascade_scales: [f32; CASCADE_COUNT] =
@@ -104,7 +94,7 @@ impl CsgiRenderer {
 
         let gi_volume_scroll: [CascadeScroll; CASCADE_COUNT] =
             array_init::array_init(|cascade_i| {
-                //(round(get_eye_position() / CSGI_VOXEL_SIZE) * CSGI_VOXEL_SIZE)
+                
                 let cascade_scale = gi_scale * cascade_scales[cascade_i];
 
                 let voxel_size = Self::voxel_size(cascade_scale);
@@ -159,8 +149,6 @@ impl CsgiRenderer {
                 }
             };
 
-            //dbg!(gi_volume_scroll_frac, gi_volume_scroll_int);
-
             let voxels_scrolled_this_frame: IVec4 = self.cur_scroll[cascade_i]
                 .volume_scroll_offset_from(&self.prev_scroll[cascade_i])
                 .into();
@@ -191,21 +179,11 @@ impl CsgiRenderer {
             opacity: mut opacity_cascades,
         } = self.create_volume(rg);
 
-        // Stagger cascade updates over frames
-        //let cascade_update_mask = 1usize << (self.frame_idx as usize % CASCADE_COUNT);
         let cascade_update_mask = !0usize;
 
-        // Advance quantum values as necessary (frame index slowed down to account for the stager).
         let quantum_idx: u32 = self.frame_idx / CASCADE_COUNT as u32;
 
         let sweep_vx_count = VOLUME_DIMS >> self.trace_subdiv.clamp(0, 5);
-
-        // Note: The sweep shaders should be dispatched as individual slices, and synchronized
-        // in-between with barries (no cache flushes), so that propagation can happen without race conditions.
-        // At the very least, it could be dispatched as one slice, but looping inside the shaders would use atomic
-        // work stealing instead of slice iteration.
-        //
-        // Either is going to leave the GPU quite under-utilized though, and would be a nice fit for async compute.
 
         for cascade_i in 0..CASCADE_COUNT {
             if 0 == ((1 << cascade_i) & cascade_update_mask) {
@@ -249,11 +227,6 @@ impl CsgiRenderer {
                 ],
             );
         }
-
-        /*let mut direct_opacity = rg.create(ImageDesc::new_3d(
-            vk::Format::R8_UNORM,
-            [VOLUME_DIMS, VOLUME_DIMS, VOLUME_DIMS],
-        ));*/
 
         let null_cascade = rg.create(
             ImageDesc::new_3d(vk::Format::B10G11R11_UFLOAT_PACK32, [1, 1, 1])
@@ -309,16 +282,6 @@ impl CsgiRenderer {
             .dispatch([VOLUME_DIMS, VOLUME_DIMS, CARDINAL_DIRECTION_COUNT as u32]);
         }
 
-        /*SimpleRenderPass::new_compute(
-            rg.add_pass("csgi subray combine"),
-            "/shaders/csgi/subray_combine.hlsl",
-        )
-        .read(&mut indirect_cascade0)
-        .read(&direct_cascade0)
-        .read(&direct_opacity_cascade0)
-        .write(&mut indirect_cascade_combined0)
-        .dispatch([VOLUME_DIMS * (TRACE_COUNT as u32), VOLUME_DIMS, VOLUME_DIMS]);*/
-
         self.frame_idx += 1;
 
         CsgiVolume {
@@ -367,7 +330,7 @@ impl CsgiRenderer {
             rg.get_or_create_temporal(
                 format!("csgi.direct_cascade{}", i),
                 ImageDesc::new_3d(
-                    //vk::Format::B10G11R11_UFLOAT_PACK32,
+                    
                     vk::Format::R16G16B16A16_SFLOAT,
                     direct_cascade_dimensions,
                 )
@@ -381,7 +344,7 @@ impl CsgiRenderer {
                 format!("csgi.indirect_cascade{}", i),
                 ImageDesc::new_3d(
                     vk::Format::B10G11R11_UFLOAT_PACK32,
-                    //vk::Format::R16G16B16A16_SFLOAT,
+                    
                     indirect_cascade_dimensions,
                 )
                 .usage(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::STORAGE),
@@ -395,7 +358,7 @@ impl CsgiRenderer {
                     format!("csgi.indirect_cascade_combined{}", i),
                     ImageDesc::new_3d(
                         vk::Format::B10G11R11_UFLOAT_PACK32,
-                        //vk::Format::R16G16B16A16_SFLOAT,
+                        
                         indirect_combined_cascade_dimensions,
                     )
                     .usage(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::STORAGE),
@@ -500,7 +463,7 @@ impl CsgiVolume {
 
                 raw_device.cmd_draw(
                     cb.raw,
-                    // 6 verts (two triangles) per cube face
+                    
                     6 * CARDINAL_DIRECTION_COUNT as u32 * VOLUME_DIMS * VOLUME_DIMS * VOLUME_DIMS,
                     1,
                     0,

@@ -1,7 +1,7 @@
 use crate::asset_browser::{AssetBrowser, AssetAction};
 use kajiya::RenderOverrideFlags;
 use kajiya_simple::*;
-use kajiya_backend::shader_progress::GLOBAL_SHADER_PROGRESS;  // Enhanced import
+use kajiya_backend::shader_progress::GLOBAL_SHADER_PROGRESS;  
 use darkmoon_icons::*;
 use imgui::*;
 
@@ -32,23 +32,20 @@ impl RuntimeState {
         }
     }
 
-    /// mesh node
     fn get_node_icon() -> char {
         ICON_SHAPES 
     }
 
-    /// sun
     fn get_sun_icon() -> char {
         ICON_SUN 
     }
 
     pub fn do_gui(&mut self, persisted: &mut PersistedState, ctx: &mut FrameContext) {
-        // --- Asset Browser State ---
+        
         if self.ui_windows.asset_browser.is_none() {
             self.ui_windows.asset_browser = Some(AssetBrowser::new());
         }
-        // Update shader progress tracking each frame 
-        // Pipeline compilation counts are automatically reported by the pipeline cache
+
         kajiya_backend::shader_progress::update_pipeline_compilation_frame(0);
 
         if self.keyboard.was_just_pressed(self.keymap_config.ui.toggle) {
@@ -58,11 +55,9 @@ impl RuntimeState {
 
         ctx.world_renderer.rg_debug_hook = self.locked_rg_debug_hook.clone();
 
-        // Always show GUI when shaders are compiling, even if normally hidden
         let is_compiling = Self::is_shader_compilation_active() || kajiya_backend::shader_progress::is_compilation_or_heavy_work_active();
         let should_show_gui = self.show_gui || is_compiling;
-        
-        // Debug logging for GUI state
+
         static mut LAST_GUI_STATE: Option<(bool, bool, bool)> = None;
         let current_state = (self.show_gui, is_compiling, should_show_gui);
         unsafe {
@@ -75,22 +70,21 @@ impl RuntimeState {
 
         if should_show_gui || is_compiling {
             log::debug!("Starting ImGui frame with show_gui={}, is_compiling={}", self.show_gui, is_compiling);
-            
-            // Variable to track save requests outside the UI closure
+
             let mut save_scene_requested = false;
             
             if let Some(imgui_ctx) = ctx.imgui.take() {
                 log::info!("ImGui context taken successfully, calling frame()");
                 imgui_ctx.frame(|ui| {
                     log::debug!("Inside ImGui frame callback");
-                    // --- Asset Browser Window ---
+                    
                 if let Some(asset_browser) = self.ui_windows.asset_browser.as_mut() {
                     if self.ui_windows.show_asset_browser && asset_browser.open {
                         let action = asset_browser.show(ui);
-                        // Handle asset browser actions
+                        
                         match action {
                             AssetAction::LoadScene(scene_path) => {
-                                // Convert PathBuf to string for the load_scene_from_path method
+                                
                                 if let Some(path_str) = scene_path.to_str() {
                                     if let Err(err) = self.load_scene_from_path(persisted, ctx, path_str) {
                                         log::error!("Failed to load scene from asset browser {}: {:#}", path_str, err);
@@ -102,13 +96,12 @@ impl RuntimeState {
                                 }
                             }
                             AssetAction::None => {
-                                // No action taken
+                                
                             }
                         }
                     }
                 }
-                // --- Hierarchy Window ---
-                // Outliner window (was Hierarchy)
+
                 static mut SELECTED_ELEMENT: Option<usize> = None;
                 static mut RESET_WINDOW_POSITIONS: bool = false;
                 static mut UNSAVED_CHANGES: bool = false;
@@ -125,9 +118,9 @@ impl RuntimeState {
                     ui.window("Outliner")
                         .opened(&mut self.ui_windows.show_hierarchy)
                         .size([350.0, 500.0], reset_condition)
-                        .position([10.0, 30.0], reset_condition)  // Posición segura con margen
+                        .position([10.0, 30.0], reset_condition)  
                         .build(|| {
-                            // Sun as a selectable item
+                            
                             let sun_selected = unsafe { SELECTED_ELEMENT == Some(usize::MAX) };
                             let sun_label = create_icon_label(Self::get_sun_icon(), "Sun Direction");
                             if ui.selectable_config(&format!("{}", sun_label))
@@ -169,7 +162,6 @@ impl RuntimeState {
                         });
                 }
 
-                // Attributes window for selected object
                 let selected_idx = unsafe { SELECTED_ELEMENT };
                 
                 if let Some(idx) = selected_idx {
@@ -182,10 +174,10 @@ impl RuntimeState {
                     };
                     
                     if idx == usize::MAX {
-                        // Sun attributes
+                        
                         ui.window("Attributes")
                             .size([350.0, 200.0], reset_condition)
-                            .position([370.0, 30.0], reset_condition)  // A la derecha del Outliner
+                            .position([370.0, 30.0], reset_condition)  
                             .build(|| {
                                 let controller = &mut persisted.light.sun.controller;
                                 let mut dir = controller.towards_sun();
@@ -205,13 +197,12 @@ impl RuntimeState {
                     } else if let Some(elem) = persisted.scene.elements.get_mut(idx) {
                         ui.window("Attributes")
                             .size([350.0, 400.0], reset_condition)
-                            .position([370.0, 30.0], reset_condition)  // A la derecha del Outliner
+                            .position([370.0, 30.0], reset_condition)  
                             .build(|| {
                                 ui.text(&format!("Source: {:?}", elem.source));
                                 ui.text(&format!("Compound: {}", elem.is_compound));
                                 ui.separator();
-                                
-                                // Transform controls with grouping
+
                                 ui.text("Position:");
                                 ui.indent();
                                 let mut pos_changed = false;
@@ -237,17 +228,15 @@ impl RuntimeState {
                                 ui.unindent();
                                 
                                 let any_changed = pos_changed || rot_changed || scale_changed;
-                                
-                                // Apply changes to renderer immediately for real-time feedback
+
                                 if any_changed {
                                     ctx.world_renderer.set_instance_transform(elem.instance, elem.transform.affine_transform());
-                                    // Mark scene as having unsaved changes
+                                    
                                     unsafe { UNSAVED_CHANGES = true; }
                                 }
                                 
                                 ui.separator();
-                                
-                                // Reset transform button
+
                                 if ui.button("Reset Transform") {
                                     elem.transform = crate::persisted::SceneElementTransform::IDENTITY;
                                     ctx.world_renderer.set_instance_transform(elem.instance, elem.transform.affine_transform());
@@ -255,15 +244,13 @@ impl RuntimeState {
                                 }
                                 
                                 ui.separator();
-                                
-                                // Show save status and quick save button
+
                                 let has_unsaved = unsafe { UNSAVED_CHANGES };
                                 if let Some(scene_path) = &self.current_scene_path {
                                     let scene_name = scene_path.file_name()
                                         .and_then(|name| name.to_str())
                                         .unwrap_or("Unknown");
-                                    
-                                    // Quick save button - only show if there are unsaved changes
+
                                     if has_unsaved {
                                         if ui.button(&format!("{} Quick Save", ICON_FLOPPY_DISK)) {
                                             save_scene_requested = true;
@@ -278,8 +265,7 @@ impl RuntimeState {
                                 } else {
                                     ui.text_colored([0.7, 0.7, 0.7, 1.0], "No scene file loaded - drag & drop a .dmoon file");
                                 }
-                                
-                                // Show mesh node information if available
+
                                 if !elem.mesh_nodes.is_empty() {
                                     ui.separator();
                                     ui.text(&format!("{} Mesh Nodes ({}):", ICON_SHAPES, elem.mesh_nodes.len()));
@@ -296,16 +282,14 @@ impl RuntimeState {
                             });
                     }
                 }
-                // --- Shader Compilation Progress Popup (always first, even if GUI is hidden) ---
+                
                 if is_compiling {
                     Self::show_shader_compilation_popup(ui);
                 }
 
-                // Only show regular GUI if user has it enabled
                 if self.show_gui {
                     log::debug!("Showing regular GUI (show_gui=true)");
-                            
-                            // --- Menubar superior ---
+
                 if let Some(bar) = ui.begin_main_menu_bar() {
                     if let Some(file_menu) = ui.begin_menu("File") {
                         if let Some(scene_menu) = ui.begin_menu("Load Scene") {
@@ -340,8 +324,7 @@ impl RuntimeState {
                         }
                         
                         ui.separator();
-                        
-                        // Save options with visual status
+
                         let has_unsaved = unsafe { UNSAVED_CHANGES };
                         if let Some(scene_path) = &self.current_scene_path {
                             let scene_name = scene_path.file_name()
@@ -362,8 +345,7 @@ impl RuntimeState {
                                     unsafe { UNSAVED_CHANGES = false; }
                                 }
                             }
-                            
-                            // Show save status
+
                             if has_unsaved {
                                 ui.text_colored([1.0, 0.8, 0.0, 1.0], "  Unsaved changes");
                             } else {
@@ -400,7 +382,7 @@ impl RuntimeState {
                         
                         ui.separator();
                         if ui.menu_item("Reset Window Positions") {
-                            // Reset all window positions to default
+                            
                             unsafe { RESET_WINDOW_POSITIONS = true; }
                         }
                         
@@ -408,23 +390,21 @@ impl RuntimeState {
                     }
                     if let Some(view_menu) = ui.begin_menu("View") {
                         if let Some(rendering_menu) = ui.begin_menu("Rendering Type") {
-                            // Rasterization mode (RTX OFF)
+                            
                             let is_rasterization = !ctx.world_renderer.is_ray_tracing_enabled() && 
                                                   ctx.world_renderer.get_render_mode() == RenderMode::Standard;
                             if ui.menu_item_config("Rasterization").selected(is_rasterization).build() {
                                 ctx.world_renderer.set_ray_tracing_enabled(false);
                                 ctx.world_renderer.set_render_mode(RenderMode::Standard);
                             }
-                            
-                            // Ray Tracing mode
+
                             let is_ray_tracing = ctx.world_renderer.is_ray_tracing_enabled() && 
                                                 ctx.world_renderer.get_render_mode() == RenderMode::Standard;
                             if ui.menu_item_config("Ray Tracing").selected(is_ray_tracing).build() {
                                 ctx.world_renderer.set_ray_tracing_enabled(true);
                                 ctx.world_renderer.set_render_mode(RenderMode::Standard);
                             }
-                            
-                            // Path Tracing mode (Reference)
+
                             let is_path_tracing = ctx.world_renderer.get_render_mode() == RenderMode::Reference;
                             if ui.menu_item_config("Path Tracing").selected(is_path_tracing).build() {
                                 ctx.world_renderer.set_render_mode(RenderMode::Reference);
@@ -485,109 +465,6 @@ impl RuntimeState {
 
                     Drag::new("Sun size").range(0.0, 10.0).speed(0.02).build(ui, &mut persisted.light.sun.size_multiplier);
 
-                    /*ui.checkbox(
-                        "Object motion blur",
-                        &mut persisted.post_process.enable_object_motion_blur,
-                    );
-
-                    ui.checkbox(
-                        "TAA",
-                        &mut persisted.post_process.enable_taa,
-                    );
-
-                    ui.checkbox(
-                        "DOF",
-                        &mut persisted.post_process.enable_dof,
-                    );
-
-                    ui.checkbox(
-                        "DLSS",
-                        &mut persisted.post_process.enable_dlss,
-                    );
-
-                    if persisted.post_process.enable_dlss {
-                        Drag::new("DLSS ratio").range(0.1, 1.0).speed(0.01).build(ui, &mut persisted.post_process.dlss_ratio);
-                    }
-
-                    ui.checkbox(
-                        "FSR",
-                        &mut persisted.post_process.enable_fsr,
-                    );
-
-                    if persisted.post_process.enable_fsr {
-                        Drag::new("FSR ratio").range(0.1, 1.0).speed(0.01).build(ui, &mut persisted.post_process.fsr_ratio);
-                    }*/
-
-                    /*ui.checkbox(
-                        "SSGI",
-                        &mut persisted.light.enable_ssgi,
-                    );
-
-                    if persisted.light.enable_ssgi {
-                        Drag::new("SSGI multiplier").range(0.0, 10.0).speed(0.1).build(ui, &mut persisted.light.ssgi.multiplier);
-                    }
-
-                    ui.checkbox(
-                        "RTGI",
-                        &mut persisted.light.enable_rtgi,
-                    );
-
-                    if persisted.light.enable_rtgi {
-                        ui.checkbox(
-                            "RTGI enable",
-                            &mut persisted.light.rtgi.enable,
-                        );
-
-                        Drag::new("RTGI multiplier").range(0.0, 10.0).speed(0.1).build(ui, &mut persisted.light.rtgi.multiplier);
-
-                        ui.drag_float("RTGI rays per pixel", &mut persisted.light.rtgi.rays_per_pixel)
-                            .range(1, 16)
-                            .build();
-
-                        ui.drag_float("RTGI pixel offset", &mut persisted.light.rtgi.pixel_offset)
-                            .range(0.1..=5.0)
-                            .speed(0.1)
-                            .build();
-
-                        ui.drag_float("RTGI ray length", &mut persisted.light.rtgi.ray_length)
-                            .range(0.1..=20.0)
-                            .speed(0.1)
-                            .build();
-
-                        ui.drag_float("RTGI roughness bias", &mut persisted.light.rtgi.roughness_bias)
-                            .range(0.0..=0.5)
-                            .speed(0.01)
-                            .build();
-
-                        ui.checkbox(
-                            "RTGI show debug",
-                            &mut persisted.light.rtgi.show_debug,
-                        );
-                    }*/
-
-                    /*ui.checkbox(
-                        "Show world radiance cache",
-                        &mut ctx.world_renderer.debug_show_wrc,
-                    );*/
-
-                    /*if ui.radio_button_bool(
-                        "Move sun",
-                        left_click_edit_mode == LeftClickEditMode::MoveSun,
-                    ) {
-                        left_click_edit_mode = LeftClickEditMode::MoveSun;
-                    }
-
-                    if ui.radio_button_bool(
-                        "Move local lights",
-                        left_click_edit_mode == LeftClickEditMode::MoveLocalLights,
-                    ) {
-                        left_click_edit_mode = LeftClickEditMode::MoveLocalLights;
-                    }
-
-                    imgui::Drag::<u32>::new("Light count")
-                        .range(0, 10)
-                        .build(ui, &mut state.lights.count);*/
-
                     ui.checkbox(
                         "Scroll irradiance cache",
                         &mut ctx.world_renderer.ircache.enable_scroll,
@@ -629,7 +506,6 @@ impl RuntimeState {
                         ui.text("Drag a sphere-mapped .hdr/.exr to load as IBL");
                     }
 
-                    // --- Hierarchy ---
                     if ui.collapsing_header("Hierarchy", TreeNodeFlags::DEFAULT_OPEN)
                     {
                         for (idx, elem) in persisted.scene.elements.iter().enumerate() {
@@ -683,7 +559,6 @@ impl RuntimeState {
                             element_to_remove = Some(idx);
                         }
 
-                        // Position
                         {
                             ui.set_next_item_width(100.0);
                             Drag::new("x").speed(0.01).build(ui, &mut elem.transform.position.x);
@@ -699,7 +574,6 @@ impl RuntimeState {
                             Drag::new("z").speed(0.01).build(ui, &mut elem.transform.position.z);
                         }
 
-                        // Rotation
                         {
                             ui.set_next_item_width(100.0);
                             Drag::new("rx").speed(0.1).build(ui, &mut elem.transform.rotation_euler_degrees.x);
@@ -724,7 +598,6 @@ impl RuntimeState {
                     }
                 }
 
-                // Frustum Culling settings
                 if ui.collapsing_header("Frustum Culling", TreeNodeFlags::DEFAULT_OPEN)
                 {
                     ui.checkbox(
@@ -742,7 +615,6 @@ impl RuntimeState {
                         &mut persisted.frustum_culling.use_sphere_culling,
                     );
 
-                    // Culling method selection
                     ui.text("Culling Method:");
                     let current_method = &mut persisted.frustum_culling.culling_method;
                     
@@ -759,8 +631,7 @@ impl RuntimeState {
                     if ui.checkbox("Scale to Zero", &mut is_scale_zero) && is_scale_zero {
                         *current_method = crate::culling::CullingMethod::ScaleToZero;
                     }
-                    
-                    // Show description for the selected method
+
                     ui.separator();
                     ui.text("Method Description:");
                     match current_method {
@@ -779,7 +650,6 @@ impl RuntimeState {
 
                     Drag::new("Log interval (frames)").range(30, 600).speed(10.0).build(ui, &mut persisted.frustum_culling.log_interval_frames);
 
-                    // Display culling statistics
                     ui.text("Culling Stats:");
                     
                     let total_elements = persisted.scene.elements.len();
@@ -809,7 +679,6 @@ impl RuntimeState {
                     }
                 }
 
-                // Occlusion Culling settings
                 if imgui::CollapsingHeader::new("Occlusion Culling")
                     .default_open(false)
                     .build(ui)
@@ -858,7 +727,6 @@ impl RuntimeState {
                     }
                 }
 
-                // Triangle Culling settings
                 if imgui::CollapsingHeader::new("Triangle Culling")
                     .default_open(false)
                     .build(ui)
@@ -884,7 +752,6 @@ impl RuntimeState {
                                 .build(ui, &mut persisted.triangle_culling.log_interval_frames);                        ui.separator();
                         ui.text("Culling Methods:");
 
-                        // Back-face culling checkbox
                         let mut has_backface = persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::BackFace);
                         if ui.checkbox("Back-face culling", &mut has_backface) {
                             if has_backface {
@@ -898,7 +765,6 @@ impl RuntimeState {
                         ui.same_line();
                         ui.text_colored([0.7, 0.7, 0.7, 1.0], "Hide faces pointing away");
 
-                        // Small triangle culling checkbox
                         let mut has_small = persisted.triangle_culling.methods.contains(&crate::math::PrimitiveCullingMethod::SmallTriangle);
                         if ui.checkbox("Small triangle culling", &mut has_small) {
                             if has_small {
@@ -938,8 +804,7 @@ impl RuntimeState {
                     if persisted.triangle_culling.enabled {
                         ui.text_colored([0.0, 1.0, 0.0, 1.0], "Status: Enabled");
                         ui.text(format!("Active methods: {}", persisted.triangle_culling.methods.len()));
-                        
-                        // Show triangle culling statistics
+
                         let triangle_stats = self.get_triangle_culling_statistics();
                         if triangle_stats.triangles_tested > 0 {
                             ui.separator();
@@ -960,7 +825,6 @@ impl RuntimeState {
                     }
                 }
 
-                // Resource Streaming Section
                 if imgui::CollapsingHeader::new("Resource Streaming")
                     .default_open(false)
                     .build(ui)
@@ -1103,27 +967,6 @@ impl RuntimeState {
                             ctx.world_renderer.debug_mode = RenderDebugMode::None;
                         }
 
-                        /*if ui.radio_button_bool(
-                            "World radiance cache",
-                            ctx.world_renderer.debug_mode == RenderDebugMode::WorldRadianceCache,
-                        ) {
-                            ctx.world_renderer.debug_mode = RenderDebugMode::WorldRadianceCache;
-                        }*/
-
-                        /*ui.combo_box_simple_string(
-                            "Shading",
-                            &mut ctx.world_renderer.debug_shading_mode,
-                            &[
-                                "Default",
-                                "No base color",
-                                "Diffuse GI",
-                                "Reflections",
-                                "RTX OFF",
-                                "Irradiance cache",
-                            ],
-                        );*/
-
-                        // Manual shading mode control - now independent of ray tracing mode
                         ui.text("Shading Mode:");
                         if ui.radio_button_bool("Default (Full Lighting)", ctx.world_renderer.debug_shading_mode == 0) {
                             ctx.world_renderer.debug_shading_mode = 0;
@@ -1160,11 +1003,9 @@ impl RuntimeState {
                 {
                     ui.text(format!("CPU frame time: {:.3}ms", ctx.dt_filtered * 1000.0));
 
-                    // GPU profiler is not available in this build
                     ui.text("GPU profiling disabled");
                 }
-                
-                // Handle save request within the scope where variables are defined
+
                 if save_scene_requested {
                     if let Err(err) = self.save_current_scene(persisted) {
                         log::error!("Failed to save scene: {:#}", err);
@@ -1174,9 +1015,8 @@ impl RuntimeState {
                     }
                 }
                 
-                } // Close the if self.show_gui block
-                
-                // Reset window positions flag after frame
+                } 
+
                 unsafe {
                     if RESET_WINDOW_POSITIONS {
                         RESET_WINDOW_POSITIONS = false;
@@ -1194,12 +1034,10 @@ impl RuntimeState {
         }
     }
 
-    /// Check if shader compilation is currently active
     fn is_shader_compilation_active() -> bool {
         if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
             if let Ok(progress) = tracker.get_progress().lock() {
-                // Show if there are registered shaders and they're not complete
-                // OR if pipeline compilation is explicitly active
+
                 let has_active_compilation = (progress.total_shaders > 0 && !progress.is_complete) 
                     || tracker.is_pipeline_compilation_active();
                     
@@ -1214,20 +1052,18 @@ impl RuntimeState {
         false
     }
 
-    /// For testing - simulate shader compilation on startup (only if no real compilation is happening)
     pub fn simulate_shader_compilation() {
-        // Enable simulation in debug builds to help with testing
-        const ENABLE_SIMULATION: bool = true; // Always enabled for now
+        
+        const ENABLE_SIMULATION: bool = true; 
 
         if !ENABLE_SIMULATION {
             return;
         }
 
         std::thread::spawn(move || {
-            // Wait a bit to ensure the GUI loop is ready
-            std::thread::sleep(std::time::Duration::from_millis(1000));
             
-            // Check if real compilation is already happening
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+
             if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
                 if let Ok(progress) = tracker.get_progress().lock() {
                     if progress.total_shaders > 0 && !progress.is_simulation_mode {
@@ -1241,8 +1077,7 @@ impl RuntimeState {
             
             if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
                 tracker.set_simulation_mode(true);
-                
-                // Simulate some typical shaders being compiled (more realistic number)
+
                 let test_shaders = vec![
                     "/shaders/rt/gbuffer.rchit.hlsl",
                     "/shaders/rt/reference_path_trace.rgen.hlsl", 
@@ -1265,11 +1100,9 @@ impl RuntimeState {
                     tracker.register_shader(shader);
                 }
             }
-            
-            // Wait a bit more to show the initial state
+
             std::thread::sleep(std::time::Duration::from_millis(1500));
-            
-            // Simulate compilation progress with more realistic timing
+
             let test_shaders = vec![
                 "/shaders/rt/gbuffer.rchit.hlsl",
                 "/shaders/rt/reference_path_trace.rgen.hlsl", 
@@ -1292,8 +1125,7 @@ impl RuntimeState {
                 if let Ok(mut tracker) = GLOBAL_SHADER_PROGRESS.lock() {
                     tracker.start_compiling_shader(shader);
                 }
-                
-                // Simulate more realistic compilation time (1-3 seconds per shader)
+
                 let compilation_time = 1000 + (i * 200) as u64 + ((i * 123) % 1000) as u64;
                 std::thread::sleep(std::time::Duration::from_millis(compilation_time));
                 
@@ -1301,13 +1133,11 @@ impl RuntimeState {
                     tracker.finish_compiling_shader(shader, true);
                 }
             }
-            
-            // When simulation finishes, keep it alive until real compilation starts or we're sure none is needed
+
             log::info!("Shader compilation simulation complete. Keeping window active until real compilation starts...");
-            
-            // Keep the simulation "complete" state visible but stay active for longer
+
             let mut monitoring_iterations = 0;
-            let max_monitoring_time = 30; // 30 * 500ms = 15 seconds
+            let max_monitoring_time = 30; 
             
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(500));
@@ -1315,13 +1145,13 @@ impl RuntimeState {
                 
                 let should_exit = if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
                     if let Ok(progress) = tracker.get_progress().lock() {
-                        // If real compilation has taken over, stop monitoring
+                        
                         if !progress.is_simulation_mode {
                             log::info!("Real shader compilation detected, ending simulation monitoring");
                             true
                         } else if monitoring_iterations >= max_monitoring_time {
                             log::info!("Simulation monitoring timeout, assuming no real compilation needed");
-                            // Mark as truly complete after timeout
+                            
                             drop(progress);
                             if let Ok(mut tracker_mut) = GLOBAL_SHADER_PROGRESS.lock() {
                                 tracker_mut.set_pipeline_compilation_active(false);
@@ -1344,23 +1174,19 @@ impl RuntimeState {
         });
     }
 
-    /// Show shader compilation progress popup
     fn show_shader_compilation_popup(ui: &imgui::Ui) {
         if let Ok(tracker) = GLOBAL_SHADER_PROGRESS.lock() {
             if let Ok(progress) = tracker.get_progress().lock() {
-                // Show popup if:
-                // 1. There are shaders registered AND compilation is not complete
-                // 2. OR pipeline compilation is explicitly active (even if no shaders registered yet)
+
                 let should_show = (progress.total_shaders > 0 && !progress.is_complete) 
                     || (progress.total_shaders == 0 && tracker.is_pipeline_compilation_active());
                 
                 if should_show {
-                    // Create a centered window
+                    
                     let [display_width, display_height] = ui.io().display_size;
                     let window_width = 500.0;
                     let window_height = 200.0;
-                    
-                    // Use window builder pattern for imgui 0.11
+
                     ui.window("Compiling Shaders")
                         .position(
                             [
@@ -1377,11 +1203,10 @@ impl RuntimeState {
                             ui.text("Initializing rendering engine...");
                             ui.spacing();
 
-                            // Progress bar
                             let progress_fraction = if progress.total_shaders > 0 {
                                 progress.progress_percentage() / 100.0
                             } else {
-                                0.0 // Indeterminate progress when no shaders registered yet
+                                0.0 
                             };
                             
                             ProgressBar::new(progress_fraction)
@@ -1391,7 +1216,6 @@ impl RuntimeState {
 
                             ui.spacing();
 
-                            // Status text
                             let status = if progress.total_shaders > 0 {
                                 progress.status_text()
                             } else if tracker.is_pipeline_compilation_active() {
@@ -1401,7 +1225,6 @@ impl RuntimeState {
                             };
                             ui.text(status);
 
-                            // Additional info about compilation type
                             if progress.is_simulation_mode {
                                 ui.spacing();
                                 ui.text_colored([0.8, 0.8, 0.3, 1.0], "Note: This is a simulation. Real compilation may follow.");

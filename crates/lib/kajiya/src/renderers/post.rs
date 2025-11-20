@@ -11,7 +11,7 @@ pub fn blur_pyramid(rg: &mut RenderGraph, input: &rg::Handle<Image>) -> rg::Hand
     let mut pyramid_desc = input
         .desc()
         .half_res()
-        .format(vk::Format::B10G11R11_UFLOAT_PACK32) // R16G16B16A16_SFLOAT
+        .format(vk::Format::B10G11R11_UFLOAT_PACK32) 
         .all_mip_levels();
     pyramid_desc.mip_levels = (pyramid_desc
         .mip_levels
@@ -140,7 +140,6 @@ impl PostProcessRenderer {
             vk::BufferUsageFlags::STORAGE_BUFFER,
         ));
 
-        // Start with input downsampled to a fairly consistent size.
         let input_mip_level: u32 = blur_pyramid.desc().mip_levels.saturating_sub(7) as u32;
 
         let mip_extent = blur_pyramid
@@ -193,7 +192,6 @@ impl PostProcessRenderer {
             histogram.copy_from_slice(src);
         }
 
-        // Reject this much from the bottom and top end
         let outlier_frac_lo: f64 = exposure_histogram_clipping.low.min(1.0) as f64;
         let outlier_frac_hi: f64 =
             (exposure_histogram_clipping.high as f64).min(1.0 - outlier_frac_lo);
@@ -227,14 +225,13 @@ impl PostProcessRenderer {
             + mean * (LUMINANCE_HISTOGRAM_MAX_LOG2 - LUMINANCE_HISTOGRAM_MIN_LOG2))
             as f32;
 
-        // log::info!("mean log lum: {}", self.image_log2_lum);
     }
 
     pub fn render(
         &mut self,
         rg: &mut RenderGraph,
         input: &rg::Handle<Image>,
-        //debug_input: &rg::Handle<Image>,
+        
         bindless_descriptor_set: vk::DescriptorSet,
         post_exposure_mult: f32,
         contrast: f32,
@@ -249,15 +246,13 @@ impl PostProcessRenderer {
 
         let mut output = rg.create(input.desc().format(vk::Format::B10G11R11_UFLOAT_PACK32));
 
-        //let blurred_luminance = edge_preserving_filter_luminance(rg, input);
-
         SimpleRenderPass::new_compute(rg.add_pass("post combine"), "/shaders/post_combine.hlsl")
             .read(input)
-            //.read(debug_input)
+            
             .read(&blur_pyramid)
             .read(&rev_blur_pyramid)
             .read(&histogram)
-            //.read(&blurred_luminance)
+            
             .write(&mut output)
             .raw_descriptor_set(1, bindless_descriptor_set)
             .constants((

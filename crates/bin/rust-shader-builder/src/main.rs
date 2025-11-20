@@ -4,7 +4,7 @@ use spirv_builder::{Capability, MetadataPrintout, ModuleResult, SpirvBuilder, Sp
 
 #[derive(SerJson)]
 struct RustShaderCompileResult {
-    // entry name -> shader path
+    
     entry_to_shader_module: Vec<(String, String)>,
 }
 
@@ -24,8 +24,6 @@ fn main() -> anyhow::Result<()> {
     let target_spv_dir = builder_root.join("../../../assets/rust-shaders-compiled");
     std::fs::create_dir_all(&target_spv_dir).context("Creating the SPIR-V output directory")?;
 
-    // Move all the compiled shaders to the `target_spv_dir`, and create a json file
-    // mapping entry points to SPIR-V modules.
     match &compile_result.module {
         ModuleResult::MultiModule(entry_shader) => {
             let res = RustShaderCompileResult {
@@ -35,8 +33,6 @@ fn main() -> anyhow::Result<()> {
                         let file_name = src_file.file_name().expect("SPIR-V module file name");
                         let dst_file = target_spv_dir.join(&file_name);
 
-                        // If the compiler detects no changes, it won't generate the output,
-                        // so we need to check whether the file actually exists.
                         if src_file.exists() {
                             std::fs::rename(src_file, &dst_file).with_context(|| {
                                 format!("Renaming {:?} to {:?}", src_file, dst_file)
@@ -54,8 +50,6 @@ fn main() -> anyhow::Result<()> {
         }
         _ => panic!(),
     }
-
-    //dbg!(compile_result);
 
     Ok(())
 }

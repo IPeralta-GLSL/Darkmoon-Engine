@@ -72,14 +72,12 @@ struct MainLoopOptional {
 pub enum WindowScale {
     Exact(f32),
 
-    // Follow resolution scaling preferences in the OS
     SystemNative,
 }
 
 pub enum FullscreenMode {
     Borderless,
 
-    /// Seems to be the only way for stutter-free rendering on Nvidia + Win10.
     Exclusive,
 }
 
@@ -150,15 +148,11 @@ impl SimpleMainLoopBuilder {
         self
     }
 
-    // TODO; not hooked up yet
     pub fn window_scale(mut self, window_scale: WindowScale) -> Self {
         self.window_scale = window_scale;
         self
     }
 
-    /// Must be >= 1.0. The rendering resolution will be 1.0 / `temporal_upsampling`,
-    /// and will be upscaled to the target resolution by TAA. Greater values mean faster
-    /// rendering, but temporal shimmering artifacts and blurriness.
     pub fn temporal_upsampling(mut self, temporal_upsampling: f32) -> Self {
         self.temporal_upsampling = temporal_upsampling.clamp(1.0, 8.0);
         self
@@ -192,12 +186,8 @@ impl SimpleMainLoop {
         mut window_builder: WindowBuilder,
     ) -> anyhow::Result<Self> {
         kajiya::logging::set_up_logging(builder.default_log_level)?;
-        std::env::set_var("SMOL_THREADS", "64"); // HACK; TODO: get a real executor
+        std::env::set_var("SMOL_THREADS", "64"); 
 
-        // Note: asking for the logical size means that if the OS is using DPI scaling,
-        // we'll get a physically larger window (with more pixels).
-        // The internal rendering resolution will still be what was asked of the `builder`,
-        // and the last blit pass will perform spatial upsampling.
         window_builder = window_builder.with_inner_size(winit::dpi::LogicalSize::new(
             builder.resolution[0] as f64,
             builder.resolution[1] as f64,
@@ -221,10 +211,8 @@ impl SimpleMainLoop {
 
         let window = window_builder.build(&event_loop).expect("window");
 
-        // Physical window extent in pixels
         let swapchain_extent = [window.inner_size().width, window.inner_size().height];
 
-        // Find the internal rendering resolution
         let render_extent = [
             (builder.resolution[0] as f32 / builder.temporal_upsampling) as u32,
             (builder.resolution[1] as f32 / builder.temporal_upsampling) as u32,
@@ -287,7 +275,6 @@ impl SimpleMainLoop {
             puffin_http::Server::new(&server_addr).unwrap()
         };
 
-        // Configurar el título inicial de la ventana
         let device_name = unsafe {
             std::ffi::CStr::from_ptr(
                 render_backend.device.physical_device().properties.device_name.as_ptr() as *const std::os::raw::c_char
@@ -342,24 +329,17 @@ impl SimpleMainLoop {
         let mut last_frame_instant = std::time::Instant::now();
         let mut last_error_text = None;
 
-        // Variables para el contador de FPS
         let mut fps_update_timer = std::time::Instant::now();
-        const FPS_UPDATE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500); // Actualizar cada 500ms
+        const FPS_UPDATE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500); 
 
-        // Delta times are filtered over _this many_ frames.
         const DT_FILTER_WIDTH: usize = 10;
 
-        // Past delta times used for filtering
         let mut dt_queue: VecDeque<f32> = VecDeque::with_capacity(DT_FILTER_WIDTH);
 
-        // Fake the first frame's delta time. In the first frame, shaders
-        // and pipelines are be compiled, so it will most likely have a spike.
         let mut fake_dt_countdown: i32 = 1;
 
         let mut running = true;
         while running {
-            // gpu_profiler::profiler().begin_frame();
-            // let gpu_frame_start_ns = puffin::now_ns();
 
             puffin::profile_scope!("main loop");
             puffin::GlobalProfiler::lock().new_frame();
@@ -408,13 +388,6 @@ impl SimpleMainLoop {
 
             puffin::profile_scope!("MainEventsCleared");
 
-            // Filter the frame time before passing it to the application and renderer.
-            // Fluctuations in frame rendering times cause stutter in animations,
-            // and time-dependent effects (such as motion blur).
-            //
-            // Should applications need unfiltered delta time, they can calculate
-            // it themselves, but it's good to pass the filtered time so users
-            // don't need to worry about it.
             let dt_filtered = {
                 let now = std::time::Instant::now();
                 let dt_duration = now - last_frame_instant;
@@ -422,13 +395,11 @@ impl SimpleMainLoop {
 
                 let dt_raw = dt_duration.as_secs_f32();
 
-                // >= because rendering (and thus the spike) happens _after_ this.
                 if fake_dt_countdown >= 0 {
-                    // First frame. Return the fake value.
+                    
                     fake_dt_countdown -= 1;
                     dt_raw.min(1.0 / 60.0)
                 } else {
-                    // Not the first frame. Start averaging.
 
                     if dt_queue.len() >= DT_FILTER_WIDTH {
                         dt_queue.pop_front();
@@ -439,13 +410,11 @@ impl SimpleMainLoop {
                 }
             };
 
-            // Actualizar el título de la ventana con FPS cada 500ms
             let now = std::time::Instant::now();
             if now.duration_since(fps_update_timer) >= FPS_UPDATE_INTERVAL {
                 let fps = 1.0 / dt_filtered;
                 let frame_time_ms = dt_filtered * 1000.0;
-                
-                // Obtener información del dispositivo físico
+
                 let device_name = unsafe {
                     std::ffi::CStr::from_ptr(
                         render_backend.device.physical_device().properties.device_name.as_ptr() as *const std::os::raw::c_char
@@ -478,7 +447,6 @@ impl SimpleMainLoop {
 
             events.clear();
 
-            // Physical window extent in pixels
             let swapchain_extent = [window.inner_size().width, window.inner_size().height];
 
             let prepared_frame = {
@@ -534,10 +502,6 @@ impl SimpleMainLoop {
                 }
             }
 
-            // gpu_profiler::profiler().end_frame();
-            // if let Some(report) = gpu_profiler::profiler().last_report() {
-            //     report.send_to_puffin(gpu_frame_start_ns);
-            // };
         }
 
         Ok(())

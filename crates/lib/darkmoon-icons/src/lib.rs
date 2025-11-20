@@ -5,9 +5,9 @@ pub mod font_setup;
 pub use font_awesome::{
     ICON_FILE, ICON_FOLDER, ICON_FOLDER_OPEN, ICON_FILM, ICON_CUBE, 
     ICON_IMAGE, ICON_BOLT, ICON_VOLUME_HIGH, ICON_CODE, ICON_GEAR,
-    ICON_SUN,  // Add sun icon for the Outliner
-    ICON_SHAPES, ICON_OBJECT_GROUP, ICON_TREE,  // Add more icons for different element types
-    ICON_FLOPPY_DISK, ICON_CHECK,  // Add save and check icons for GUI
+    ICON_SUN,  
+    ICON_SHAPES, ICON_OBJECT_GROUP, ICON_TREE,  
+    ICON_FLOPPY_DISK, ICON_CHECK,  
     FONT_ICON_FILE_NAME_FAS, FONT_ICON_FILE_NAME_FAR
 };
 pub use font_awesome_brands::*;

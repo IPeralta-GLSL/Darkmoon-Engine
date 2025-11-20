@@ -86,12 +86,11 @@ impl Device {
             requirements.alignment = requirements.alignment.max(alignment);
         }
 
-        // TODO: why does `get_buffer_memory_requirements` fail to get the correct alignment on AMD?
         if desc
             .usage
             .contains(vk::BufferUsageFlags::SHADER_BINDING_TABLE_KHR)
         {
-            // TODO: query device props
+            
             requirements.alignment = requirements.alignment.max(64);
         }
 
@@ -100,14 +99,13 @@ impl Device {
                 name,
                 requirements,
                 location: desc.memory_location,
-                linear: true, // Buffers are always linear
+                linear: true, 
             })
             .map_err(move |err| BackendError::Allocation {
                 inner: err,
                 name: name.to_owned(),
             })?;
 
-        // Bind memory to the buffer
         unsafe {
             raw.bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
                 .expect("bind_buffer_memory")

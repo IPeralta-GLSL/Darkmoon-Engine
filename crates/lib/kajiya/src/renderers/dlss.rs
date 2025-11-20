@@ -41,15 +41,6 @@ impl DlssRenderer {
                 NVSDK_NGX_Result_NVSDK_NGX_Result_Success
             );
 
-            /*let inst_exts = (0..inst_ext_count)
-                .map(|i| std::ffi::CStr::from_ptr(*inst_exts.add(i as _).as_ref().unwrap()))
-                .collect::<Vec<_>>();
-            let device_exts = (0..device_ext_count)
-                .map(|i| std::ffi::CStr::from_ptr(*device_exts.add(i as _).as_ref().unwrap()))
-                .collect::<Vec<_>>();
-            dbg!(inst_exts);
-            dbg!(device_exts);*/
-
             let dlss_search_path = kajiya_backend::normalized_path_from_vfs("/kajiya").unwrap_or_else(|_| panic!("/kajiya VFS entry not found. Did you forget to call `set_standard_vfs_mount_points`?"));
             log::info!("DLSS DLL search path: {:?}", dlss_search_path);
 
@@ -69,7 +60,7 @@ impl DlssRenderer {
                 InternalData: ptr::null_mut(),
                 LoggingInfo: NGSDK_NGX_LoggingInfo {
                     LoggingCallback: None,
-                    //MinimumLoggingLevel: NVSDK_NGX_Logging_Level_NVSDK_NGX_LOGGING_LEVEL_VERBOSE,
+                    
                     MinimumLoggingLevel: NVSDK_NGX_Logging_Level_NVSDK_NGX_LOGGING_LEVEL_OFF,
                     DisableOtherLoggingSinks: false,
                 },
@@ -188,7 +179,6 @@ impl DlssRenderer {
                         | NVSDK_NGX_DLSS_Feature_Flags_NVSDK_NGX_DLSS_Feature_Flags_DepthInverted,
                 InEnableOutputSubrects: false,
             };
-            //dbg!(&dlss_create_params);
 
             NVSDK_NGX_Parameter_SetUI(ngx_params, NVSDK_NGX_Parameter_CreationNodeMask, 1);
             NVSDK_NGX_Parameter_SetUI(ngx_params, NVSDK_NGX_Parameter_VisibilityNodeMask, 1);
@@ -271,7 +261,6 @@ impl DlssRenderer {
             ),
         );
 
-        // Thanks to `InMVScaleX` and `InMVScaleY`, the reprojection map can be used directly.
         let motion_vectors = reprojection_map;
 
         let mut pass = rg.add_pass("dlss");
@@ -405,7 +394,7 @@ impl DlssOptimalSettings {
             NVSDK_NGX_Parameter_SetUI(ngx_params, NVSDK_NGX_Parameter_Width, target_resolution[0]);
             NVSDK_NGX_Parameter_SetUI(ngx_params, NVSDK_NGX_Parameter_Height, target_resolution[1]);
             NVSDK_NGX_Parameter_SetI(ngx_params, NVSDK_NGX_Parameter_PerfQualityValue, value);
-            NVSDK_NGX_Parameter_SetI(ngx_params, NVSDK_NGX_Parameter_RTXValue, 0); // Some older DLSS dlls still expect this value to be set
+            NVSDK_NGX_Parameter_SetI(ngx_params, NVSDK_NGX_Parameter_RTXValue, 0); 
             ngx_checked!(get_optimal_settings_fn(ngx_params));
 
             NVSDK_NGX_Parameter_GetUI(
@@ -536,22 +525,7 @@ fn NGX_VULKAN_EVALUATE_DLSS_EXT(
             NVSDK_NGX_Parameter_DLSS_Input_Bias_Current_Color_Mask,
             pInDlssEvalParams.pInBiasCurrentColorMask as _,
         );
-        /*NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Albedo, pInDlssEvalParams.GBufferSurface.pInAttrib[NVSDK_NGX_GBUFFER_ALBEDO]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Roughness, pInDlssEvalParams.GBufferSurface.pInAttrib[NVSDK_NGX_GBUFFER_ROUGHNESS]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Metallic, pInDlssEvalParams.GBufferSurface.pInAttrib[NVSDK_NGX_GBUFFER_METALLIC]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Specular, pInDlssEvalParams.GBufferSurface.pInAttrib[NVSDK_NGX_GBUFFER_SPECULAR]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Subsurface, pInDlssEvalParams.GBufferSurface.pInAttrib[NVSDK_NGX_GBUFFER_SUBSURFACE]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Normals, pInDlssEvalParams.GBufferSurface.pInAttrib[NVSDK_NGX_GBUFFER_NORMALS]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_ShadingModelId, pInDlssEvalParams.GBufferSurface.pInAttrib[NVSDK_NGX_GBUFFER_SHADINGMODELID]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_MaterialId, pInDlssEvalParams.GBufferSurface.pInAttrib[NVSDK_NGX_GBUFFER_MATERIALID]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Atrrib_8, pInDlssEvalParams.GBufferSurface.pInAttrib[8]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Atrrib_9, pInDlssEvalParams.GBufferSurface.pInAttrib[9]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Atrrib_10, pInDlssEvalParams.GBufferSurface.pInAttrib[10]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Atrrib_11, pInDlssEvalParams.GBufferSurface.pInAttrib[11]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Atrrib_12, pInDlssEvalParams.GBufferSurface.pInAttrib[12]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Atrrib_13, pInDlssEvalParams.GBufferSurface.pInAttrib[13]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Atrrib_14, pInDlssEvalParams.GBufferSurface.pInAttrib[14]);
-        NVSDK_NGX_Parameter_SetVoidPointer(pInParams, NVSDK_NGX_Parameter_GBuffer_Atrrib_15, pInDlssEvalParams.GBufferSurface.pInAttrib[15]);*/
+        
         NVSDK_NGX_Parameter_SetUI(
             pInParams,
             NVSDK_NGX_Parameter_TonemapperType,
@@ -713,7 +687,7 @@ fn image_to_ngx<ViewType: rg::GpuViewType>(
                     Width: image.desc.extent[0],
                     Height: image.desc.extent[1],
                 },
-            }, // NVSDK_NGX_RESOURCE_VK_TYPE_VK_IMAGEVIEW
+            }, 
             Type: NVSDK_NGX_Resource_VK_Type_NVSDK_NGX_RESOURCE_VK_TYPE_VK_IMAGEVIEW,
             ReadWrite: ViewType::IS_WRITABLE,
         }

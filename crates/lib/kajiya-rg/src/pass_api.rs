@@ -48,7 +48,7 @@ pub enum DescriptorSetBinding {
 
 #[derive(Default)]
 pub struct RenderPassCommonShaderPipelineBinding<'a> {
-    // TODO: fixed size
+    
     bindings: Vec<(u32, &'a [RenderPassBinding])>,
     raw_bindings: Vec<(u32, vk::DescriptorSet)>,
 }
@@ -167,7 +167,6 @@ impl<'a, 'exec_params, 'constants> RenderPassApi<'a, 'exec_params, 'constants> {
             );
         }
 
-        // Bind frame constants
         if pipeline
             .set_layout_info
             .get(2)
@@ -330,7 +329,6 @@ impl<'a, 'exec_params, 'constants> RenderPassApi<'a, 'exec_params, 'constants> {
             )
             .unwrap();
 
-        // Bind images to the imageless framebuffer
         let image_attachments: Result<
             ArrayVec<[vk::ImageView; MAX_COLOR_ATTACHMENTS + 1]>,
             BackendError,
@@ -346,7 +344,6 @@ impl<'a, 'exec_params, 'constants> RenderPassApi<'a, 'exec_params, 'constants> {
 
         let [width, height] = dims;
 
-        //.clear_values(&clear_values)
         let pass_begin_desc = vk::RenderPassBeginInfo::builder()
             .render_pass(render_pass.raw)
             .framebuffer(framebuffer)
@@ -745,7 +742,6 @@ fn bind_descriptor_set(
                             )
                             .build();
 
-                            // This is only set by the builder for images, buffers, or views; need to set explicitly after
                             write.descriptor_count = 1;
                             write
                         }

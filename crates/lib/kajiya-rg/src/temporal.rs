@@ -142,7 +142,7 @@ pub trait GetOrCreateTemporal<Desc: ResourceDesc> {
         &mut self,
         key: impl Into<TemporalResourceKey>,
         desc: Desc,
-        //) -> anyhow::Result<Handle<Image>> {
+        
     ) -> anyhow::Result<Handle<<Desc as ResourceDesc>::Resource>>
     where
         Desc: TypeEquals<Other = <<Desc as ResourceDesc>::Resource as Resource>::Desc>;
@@ -153,7 +153,7 @@ impl GetOrCreateTemporal<ImageDesc> for TemporalRenderGraph {
         &mut self,
         key: impl Into<TemporalResourceKey>,
         desc: ImageDesc,
-        //) -> anyhow::Result<Handle<Image>> {
+        
     ) -> anyhow::Result<Handle<Image>> {
         let key = key.into();
 
@@ -201,7 +201,7 @@ impl GetOrCreateTemporal<ImageDesc> for TemporalRenderGraph {
             hash_map::Entry::Vacant(entry) => {
                 let resource = Arc::new(
                     self.device
-                        // TODO: Zero-init
+                        
                         .create_image(desc, vec![])
                         .with_context(|| format!("Creating image {:?}", desc))?,
                 );
@@ -221,7 +221,7 @@ impl GetOrCreateTemporal<BufferDesc> for TemporalRenderGraph {
         &mut self,
         key: impl Into<TemporalResourceKey>,
         desc: BufferDesc,
-        //) -> anyhow::Result<Handle<Image>> {
+        
     ) -> anyhow::Result<Handle<Buffer>> {
         let key = key.into();
 
@@ -270,7 +270,7 @@ impl GetOrCreateTemporal<BufferDesc> for TemporalRenderGraph {
                 let resource = Arc::new(self.device.create_buffer(
                     desc,
                     &key.0,
-                    // Zero-init
+                    
                     Some(vec![0; desc.size].as_slice()),
                 )?);
                 let handle = self.rg.import(resource.clone(), AccessType::Nothing);
@@ -292,7 +292,7 @@ impl TemporalRenderGraph {
         for state in state.resources.values_mut() {
             match state {
                 TemporalResourceState::Inert { .. } => {
-                    // Nothing to do here
+                    
                 }
                 TemporalResourceState::Imported { resource, handle } => match handle {
                     ExportableGraphResource::Image(handle) => {
@@ -327,7 +327,7 @@ impl ExportedTemporalRenderGraphState {
         for state in state.resources.values_mut() {
             match state {
                 TemporalResourceState::Inert { .. } => {
-                    // Nothing to do here
+                    
                 }
                 TemporalResourceState::Imported { .. } => {
                     unreachable!()

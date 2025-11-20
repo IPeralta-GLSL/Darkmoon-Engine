@@ -36,8 +36,6 @@ impl ViewConstants {
         }
     }
 
-    /// `render_extent` is the Internal render resolution, before any upsampling:
-    /// important for jittering over the whole domain.
     pub fn set_pixel_offset(&mut self, v: Vec2, render_extent: UVec2) {
         let sample_offset_pixels = v;
         let sample_offset_clip = Vec2::new(
@@ -47,13 +45,9 @@ impl ViewConstants {
 
         let mut jitter_matrix = Mat4::IDENTITY;
         jitter_matrix.w_axis = (-sample_offset_clip).extend(0.0).extend(1.0);
-        //jitter_matrix.m14 = -sample_offset_clip.x;
-        //jitter_matrix.m24 = -sample_offset_clip.y;
 
         let mut jitter_matrix_inv = Mat4::IDENTITY;
         jitter_matrix_inv.w_axis = sample_offset_clip.extend(0.0).extend(1.0);
-        //jitter_matrix_inv.m14 = sample_offset_clip.x;
-        //jitter_matrix_inv.m24 = sample_offset_clip.y;
 
         let view_to_sample = jitter_matrix * self.view_to_clip;
         let sample_to_view = self.clip_to_view * jitter_matrix_inv;

@@ -1,4 +1,4 @@
-// not used
+
 
 #![allow(dead_code)]
 
@@ -13,8 +13,6 @@ use spirv_std::{Image, Sampler};
 #[cfg(not(target_arch = "spirv"))]
 use spirv_std::macros::spirv;
 
-// From "Fast Denoising with Self Stabilizing Recurrent Blurs"
-
 #[repr(C)]
 pub struct Constants {
     output_tex_size: Vec4,
@@ -28,7 +26,7 @@ fn all_below(v: IVec2, value: IVec2) -> bool {
     v.x < value.x && v.y < value.y
 }
 
-#[rustfmt::skip] // eats long spirv lines!
+#[rustfmt::skip] 
 #[spirv(compute(threads(8, 8, 1)))]
 pub fn calculate_reprojection_map_cs(
     #[spirv(descriptor_set = 0, binding = 0)] depth_tex: &Image!(2D, type=f32, sampled=true),
@@ -75,33 +73,19 @@ pub fn calculate_reprojection_map_cs(
     let velocity_texel: Vec4 = velocity_tex.fetch(px.truncate());
     let prev_vs: Vec4 = pos_vs / pos_vs.w + velocity_texel.truncate().extend(0.0);
 
-    //float4 prev_cs = mul(frame_constants.view_constants.prev_view_to_prev_clip, prev_vs);
     let prev_cs: Vec4 = frame_constants.view_constants.view_to_clip * prev_vs;
     let prev_pcs: Vec4 = frame_constants.view_constants.clip_to_prev_clip * prev_cs;
 
     let mut prev_uv = cs_to_uv(prev_pcs.xy() / prev_pcs.w);
     let mut uv_diff: Vec2 = prev_uv - uv;
 
-    // Account for quantization of the `uv_diff` in R16G16B16A16_SNORM.
-    // This is so we calculate validity masks for pixels that the users will actually be using.
     uv_diff = (uv_diff * 32767.0 + Vec2::splat(0.5)).trunc() / 32767.0;
     prev_uv = uv + uv_diff;
 
     let mut prev_pvs: Vec4 = frame_constants.view_constants.prev_clip_to_prev_view * prev_pcs;
     prev_pvs /= prev_pvs.w;
 
-    // Based on "Fast Denoising with Self Stabilizing Recurrent Blurs"
-
-    // Note: departure from the quoted technique: they calculate reprojected sample depth by linearly
-    // scaling plane distance with view-space Z, which is not correct unless the plane is aligned with view.
-    // Instead, the amount that distance actually increases with depth is simply `normal_vs.z`.
-
-    // Note: bias the minimum distance increase, so that reprojection at grazing angles has a sharper cutoff.
-    // This can introduce shimmering a grazing angles, but also reduces reprojection artifacts on surfaces
-    // which flip their normal from back- to fron-facing across a frame. Such reprojection smears a few
-    // pixels along a wide area, creating a glitchy look.
     let plane_dist_prev_dz = normal_vs.z.min(-0.2);
-    //float plane_dist_prev_dz = -normal_vs.z;
 
     let bilinear_at_prev = Bilinear::new(prev_uv, constants.output_tex_size.xy());
     let prev_gather_uv: Vec2 = (bilinear_at_prev.origin + Vec2::ONE) / constants.output_tex_size.xy();
@@ -111,14 +95,10 @@ pub fn calculate_reprojection_map_cs(
 
     let prev_view_z: Vec4 = depth_to_view_z_vec4(prev_depth, frame_constants);
 
-    // Note: departure from the quoted technique: linear offset from zero distance at previous position instead of scaling.
     let quad_dists: Vec4 = abs_vec4(plane_dist_prev_dz * (prev_view_z - prev_pvs.z));
-
-    // TODO: reject based on normal too? Potentially tricky under rotations.
 
     let acceptance_threshold: f32 = 0.001 * (1080.0 / constants.output_tex_size.y);
 
-    // Reduce strictness at grazing angles, where distances grow due to perspective
     let pos_vs_norm: Vec3 = (pos_vs.truncate() / pos_vs.w).normalize();
     let ndotv: f32 = normal_vs.dot(pos_vs_norm);
 

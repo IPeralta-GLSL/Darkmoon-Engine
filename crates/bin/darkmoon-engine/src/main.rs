@@ -92,9 +92,8 @@ impl AppState {
 
 const APP_STATE_CONFIG_FILE_PATH: &str = "view_state.dmoon";
 
-
 fn main() -> anyhow::Result<()> {
-    // Only force X11 on Linux
+    
     #[cfg(target_os = "linux")]
     {
         if std::env::var_os("WAYLAND_DISPLAY").is_some() {
@@ -122,7 +121,6 @@ fn main() -> anyhow::Result<()> {
 
     let mut state = AppState::new(persisted, &opt)?;
 
-    // Simulate shader compilation for testing the progress window
     runtime::RuntimeState::simulate_shader_compilation();
 
     if let Some(scene) = opt.scene.as_ref() {

@@ -5,16 +5,7 @@ use byteorder::{ByteOrder, NativeEndian, WriteBytesExt};
 use glam::{Mat4, Quat, Vec3, Vec4};
 use gltf::texture::TextureTransform;
 use kajiya_backend::bytes::into_byte_vec;
-/*use render_core::{
-    constants::MAX_VERTEX_STREAMS,
-    device::RenderDevice,
-    state::{build, RenderBindingBuffer},
-    types::{
-        RayTracingGeometryDesc, RayTracingGeometryPart, RayTracingGeometryType, RenderBindFlags,
-        RenderBufferDesc, RenderDrawBindingSetDesc, RenderFormat, RenderResourceType,
-        RenderShaderViewsDesc,
-    },
-};*/
+
 use anyhow::Context as _;
 use std::{
     hash::Hash,
@@ -80,10 +71,10 @@ pub struct MeshMaterial {
     pub emissive: [f32; 3],
     pub flags: u32,
     pub map_transforms: [[f32; 6]; 4],
-    pub transparency: f32,  // 0.0 = opaque, 1.0 = fully transparent
-    pub ior: f32,           // Index of refraction for translucent materials
-    pub transmission: f32,  // Transmission factor (0.0-1.0)
-    pub _padding: f32,      // For alignment
+    pub transparency: f32,  
+    pub ior: f32,           
+    pub transmission: f32,  
+    pub _padding: f32,      
 }
 
 #[derive(Clone, Default)]
@@ -93,10 +84,10 @@ pub struct TriangleMesh {
     pub colors: Vec<[f32; 4]>,
     pub uvs: Vec<[f32; 2]>,
     pub tangents: Vec<[f32; 4]>,
-    pub material_ids: Vec<u32>, // per index, but can be flat shaded
+    pub material_ids: Vec<u32>, 
     pub indices: Vec<u32>,
-    pub materials: Vec<MeshMaterial>, // global
-    pub maps: Vec<MeshMaterialMap>,   // global
+    pub materials: Vec<MeshMaterial>, 
+    pub maps: Vec<MeshMaterialMap>,   
     pub images: Vec<ImageSource>,
 }
 
@@ -176,7 +167,6 @@ fn load_gltf_material(
 
     map_transforms[0] = albedo_map_transform;
 
-    // TODO: add texture transform to the normal map in the `gltf` crate
     let normal_map =
         mat.normal_texture()
             .map_or(MeshMaterialMap::Placeholder([127, 127, 255, 255]), |tex| {
@@ -241,14 +231,10 @@ fn load_gltf_material(
     let roughness_mult = mat.pbr_metallic_roughness().roughness_factor();
     let metalness_factor = mat.pbr_metallic_roughness().metallic_factor();
 
-    // Extract transparency from alpha channel
     let transparency = 1.0 - base_color_mult[3];
-    
-    // Default values for new translucency properties
-    let ior = 1.5; // Glass-like default
-    let transmission = if transparency > 0.01 { 1.0 } else { 0.0 }; // Full transmission for transparent materials
 
-    //mata.normal_texture().and_then(|tex| tex.transform())
+    let ior = 1.5; 
+    let transmission = if transparency > 0.01 { 1.0 } else { 0.0 }; 
 
     (
         vec![normal_map, spec_map, albedo_map, emissive_map],
@@ -319,21 +305,18 @@ impl LazyWorker for LoadGltfScene {
                             res.maps.append(&mut maps);
                         }
 
-                        // Collect positions (required)
                         let positions = if let Some(iter) = reader.read_positions() {
                             iter.collect::<Vec<_>>()
                         } else {
                             return;
                         };
 
-                        // Collect normals (required)
                         let normals = if let Some(iter) = reader.read_normals() {
                             iter.collect::<Vec<_>>()
                         } else {
                             return;
                         };
 
-                        // Collect tangents (optional)
                         let (mut tangents, tangents_found) =
                             if let Some(iter) = reader.read_tangents() {
                                 (iter.collect::<Vec<_>>(), true)
@@ -341,24 +324,20 @@ impl LazyWorker for LoadGltfScene {
                                 (vec![[1.0, 0.0, 0.0, 0.0]; positions.len()], false)
                             };
 
-                        // Collect uvs (optional)
                         let (mut uvs, uvs_found) = if let Some(iter) = reader.read_tex_coords(0) {
                             (iter.into_f32().collect::<Vec<_>>(), true)
                         } else {
                             (vec![[0.0, 0.0]; positions.len()], false)
                         };
 
-                        // Collect colors (optional)
                         let mut colors = if let Some(iter) = reader.read_colors(0) {
                             iter.into_rgba_f32().collect::<Vec<_>>()
                         } else {
                             vec![[1.0, 1.0, 1.0, 1.0]; positions.len()]
                         };
 
-                        // Collect material ids
                         let mut material_ids = vec![res_material_index; positions.len()];
 
-                        // Collect indices
                         let mut indices: Vec<u32>;
                         {
                             if let Some(indices_reader) = reader.read_indices() {
@@ -402,11 +381,8 @@ impl LazyWorker for LoadGltfScene {
                             });
                         }
 
-                        // --------------------------------------------------------
-                        // Write it all to the output
-
                         {
-                            // log::info!("Loading a mesh with {} indices", indices.len());
+                            
                             let base_index = res.positions.len() as u32;
                             for i in &mut indices {
                                 *i += base_index;
@@ -552,7 +528,7 @@ pub fn flatten_bytes(writer: &mut impl std::io::Write, data: &[u8]) {
 }
 
 pub struct DeferredBlob {
-    pub fixup_addr: usize, // offset within parent
+    pub fixup_addr: usize, 
     pub nested: FlattenCtx,
 }
 
@@ -589,7 +565,6 @@ impl FlattenCtx {
             fixups: Vec<(FixupAddr, SectionIdx)>,
         }
 
-        // Build flattened sections over the nested structures
         let mut sections: Vec<Section> = Vec::new();
 
         let mut ctx_list = vec![self];
@@ -614,7 +589,6 @@ impl FlattenCtx {
             ctx_list = next_ctx_list;
         }
 
-        // Lay out the sections
         let mut total_bytes = 0usize;
         let section_base_addr: Vec<usize> = sections
             .iter()
@@ -625,13 +599,11 @@ impl FlattenCtx {
             })
             .collect();
 
-        // Apply fixups
         for (section, &section_addr) in sections.iter_mut().zip(&section_base_addr) {
             for &(fixup_addr, target_section) in &section.fixups {
-                // Apply the fixup of the structure which was pointing at this deferred blob
+                
                 let fixup_target: u64 = section_base_addr[target_section] as u64;
 
-                // The fixup is relative to the `offset` field itself
                 let fixup_relative = fixup_target - (fixup_addr + section_addr) as u64;
 
                 section.bytes[fixup_addr..fixup_addr + 8]
@@ -639,7 +611,6 @@ impl FlattenCtx {
             }
         }
 
-        // Write sections out
         for section in sections {
             writer.write_all(section.bytes.as_slice()).unwrap();
         }
@@ -647,7 +618,7 @@ impl FlattenCtx {
 }
 
 macro_rules! def_asset {
-    // Vector
+    
     (@proto_ty Vec($($type:tt)+)) => {
         Vec<def_asset!(@proto_ty $($type)+ )>
     };
@@ -666,7 +637,6 @@ macro_rules! def_asset {
         });
     };
 
-    // Bytes
     (@proto_ty Bytes) => {
         bytes::Bytes
     };
@@ -683,7 +653,6 @@ macro_rules! def_asset {
         });
     };
 
-    // Asset
     (@proto_ty Asset($($type:tt)+)) => {
         Lazy<def_asset!(@proto_ty $($type)+ ::Proto)>
     };
@@ -698,8 +667,6 @@ macro_rules! def_asset {
         flatten_plain_field(&mut $output.bytes, &asset_ref)
     };
 
-
-    // Plain type
     (@proto_ty $($type:tt)+) => {
         $($type)+
     };
@@ -798,7 +765,6 @@ impl<T> Ord for AssetRef<T> {
     }
 }
 
-// TODO: use `rkyv` instead
 def_asset! {
     GpuImage {
         format { kajiya_backend::ash::vk::Format }
@@ -807,7 +773,6 @@ def_asset! {
     }
 }
 
-// TODO: use `rkyv` instead
 def_asset! {
     #[derive(Clone)]
     PackedTriMesh {
@@ -821,18 +786,6 @@ def_asset! {
         maps { Vec(Asset(GpuImage)) }
     }
 }
-
-/*#[derive(Clone)]
-pub struct PackedTriangleMesh {
-    pub verts: Vec<PackedVertex>,
-    pub uvs: Vec<[f32; 2]>,
-    pub tangents: Vec<[f32; 4]>,
-    pub colors: Vec<[f32; 4]>,
-    pub indices: Vec<u32>,
-    pub material_ids: Vec<u32>,
-    pub materials: Vec<MeshMaterial>,
-    pub maps: Vec<MeshMaterialMap>,
-}*/
 
 pub type PackedTriangleMesh = PackedTriMesh::Proto;
 

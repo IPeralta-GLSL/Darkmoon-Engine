@@ -18,7 +18,7 @@ pub struct IblRenderer {
 impl IblRenderer {
     pub fn unload_image(&mut self) {
         self.image = None;
-        // TODO: deallocate
+        
         self.texture = None;
     }
 
@@ -27,8 +27,6 @@ impl IblRenderer {
 
         self.image = Some(img);
 
-        // Force re-creation of the texture
-        // TODO: deallocate the old one 😅
         self.texture = None;
 
         Ok(())
@@ -149,7 +147,7 @@ fn load_exr(file_path: &Path) -> anyhow::Result<ImageRgba16f> {
             |resolution, _channels: &exrs::RgbChannels| -> ImageRgba16f {
                 ImageRgba16f::new(resolution.width() as _, resolution.height() as _)
             },
-            // set each pixel in the png buffer from the exr file
+            
             |output, position, (r, g, b): (f32, f32, f32)| {
                 let r_half = f16::from_f32(r);
                 let g_half = f16::from_f32(g);
@@ -164,7 +162,6 @@ fn load_exr(file_path: &Path) -> anyhow::Result<ImageRgba16f> {
         .first_valid_layer()
         .all_attributes();
 
-    // an image that contains a single layer containing an png rgba buffer
     let maybe_image: Result<
         exrs::Image<exrs::Layer<exrs::SpecificChannels<ImageRgba16f, exrs::RgbChannels>>>,
         exrs::Error,

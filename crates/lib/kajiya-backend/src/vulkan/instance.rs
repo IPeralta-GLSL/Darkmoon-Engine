@@ -143,10 +143,7 @@ unsafe extern "system" fn vulkan_debug_callback(
     if message.starts_with("Validation Error: [ VUID-VkWriteDescriptorSet-descriptorType-00322")
         || message.starts_with("Validation Error: [ VUID-VkWriteDescriptorSet-descriptorType-02752")
     {
-        // Validation layers incorrectly report an error in pushing immutable sampler descriptors.
-        //
-        // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdPushDescriptorSetKHR.html
-        // This documentation claims that it's necessary to push immutable samplers.
+
     } else if message.starts_with("Validation Performance Warning") {
     } else if message.starts_with("Validation Warning: [ VUID_Undefined ]") {
         log::warn!("{}\n", message);

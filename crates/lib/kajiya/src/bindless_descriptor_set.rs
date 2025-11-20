@@ -4,25 +4,25 @@ use kajiya_backend::{ash::vk, rspirv_reflect, vulkan::device};
 
 lazy_static::lazy_static! {
     pub static ref BINDLESS_DESCRIPTOR_SET_LAYOUT: HashMap<u32, rspirv_reflect::DescriptorInfo> = [
-        // `meshes`
+        
         (0, rspirv_reflect::DescriptorInfo {
             ty: rspirv_reflect::DescriptorType::STORAGE_BUFFER,
             dimensionality: rspirv_reflect::DescriptorDimensionality::Single,
             name: Default::default(),
         }),
-        // `vertices`
+        
         (1, rspirv_reflect::DescriptorInfo {
             ty: rspirv_reflect::DescriptorType::STORAGE_BUFFER,
             dimensionality: rspirv_reflect::DescriptorDimensionality::Single,
             name: Default::default(),
         }),
-        // `bindless_texture_sizes`
+        
         (2, rspirv_reflect::DescriptorInfo {
             ty: rspirv_reflect::DescriptorType::STORAGE_BUFFER,
             dimensionality: rspirv_reflect::DescriptorDimensionality::Single,
             name: Default::default(),
         }),
-        // `bindless_textures`
+        
         (BINDLESS_TEXURES_BINDING_INDEX as u32, rspirv_reflect::DescriptorInfo {
             ty: rspirv_reflect::DescriptorType::SAMPLED_IMAGE,
             dimensionality: rspirv_reflect::DescriptorDimensionality::RuntimeArray,
@@ -58,28 +58,28 @@ pub fn create_bindless_descriptor_set(device: &device::Device) -> vk::Descriptor
             .create_descriptor_set_layout(
                 &vk::DescriptorSetLayoutCreateInfo::builder()
                     .bindings(&[
-                        // `meshes`
+                        
                         vk::DescriptorSetLayoutBinding::builder()
                             .binding(0)
                             .descriptor_count(1)
                             .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
                             .stage_flags(vk::ShaderStageFlags::ALL)
                             .build(),
-                        // `vertices`
+                        
                         vk::DescriptorSetLayoutBinding::builder()
                             .binding(1)
                             .descriptor_count(1)
                             .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
                             .stage_flags(vk::ShaderStageFlags::ALL)
                             .build(),
-                        // `bindless_texture_sizes`
+                        
                         vk::DescriptorSetLayoutBinding::builder()
                             .binding(2)
                             .descriptor_count(1)
                             .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
                             .stage_flags(vk::ShaderStageFlags::ALL)
                             .build(),
-                        // `bindless_textures`
+                        
                         vk::DescriptorSetLayoutBinding::builder()
                             .binding(BINDLESS_TEXURES_BINDING_INDEX as _)
                             .descriptor_count(device.max_bindless_descriptor_count() as _)

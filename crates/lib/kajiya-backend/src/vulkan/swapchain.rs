@@ -19,15 +19,12 @@ pub struct Swapchain {
     pub images: Vec<Arc<crate::Image>>,
     pub acquire_semaphores: Vec<vk::Semaphore>,
 
-    // TODO: move out of swapchain, make a single semaphore
     pub rendering_finished_semaphores: Vec<vk::Semaphore>,
     pub next_semaphore: usize,
 
-    // Keep a reference in order not to drop after the device
     #[allow(dead_code)]
     pub(crate) device: Arc<Device>,
 
-    // Ditto
     #[allow(dead_code)]
     surface: Arc<Surface>,
 }
@@ -62,8 +59,6 @@ impl Swapchain {
                 .get_physical_device_surface_capabilities(device.pdevice.raw, surface.raw)
         }?;
 
-        // Triple-buffer so that acquiring an image doesn't stall for >16.6ms at 60Hz on AMD
-        // when frames take >16.6ms to render. Also allows MAILBOX to work.
         let mut desired_image_count = 3.max(surface_capabilities.min_image_count);
 
         if surface_capabilities.max_image_count != 0 {
@@ -72,7 +67,6 @@ impl Swapchain {
 
         log::info!("Swapchain image count: {}", desired_image_count);
 
-        //dbg!(&surface_capabilities);
         let surface_resolution = match surface_capabilities.current_extent.width {
             std::u32::MAX => desc.dims,
             _ => surface_capabilities.current_extent,
@@ -128,35 +122,6 @@ impl Swapchain {
         let swapchain = unsafe { fns.create_swapchain(&swapchain_create_info, None) }.unwrap();
 
         let vk_images = unsafe { fns.get_swapchain_images(swapchain) }.unwrap();
-        /*let image_views = images
-        .iter()
-        .map(|image| unsafe {
-            device
-                .raw
-                .create_image_view(
-                    &vk::ImageViewCreateInfo {
-                        image: *image,
-                        view_type: vk::ImageViewType::TYPE_2D,
-                        format: vk::Format::B8G8R8A8_UNORM,
-                        subresource_range: vk::ImageSubresourceRange {
-                            aspect_mask: vk::ImageAspectFlags::COLOR,
-                            level_count: 1,
-                            layer_count: 1,
-                            ..Default::default()
-                        },
-                        components: vk::ComponentMapping {
-                            r: vk::ComponentSwizzle::R,
-                            g: vk::ComponentSwizzle::G,
-                            b: vk::ComponentSwizzle::B,
-                            a: vk::ComponentSwizzle::A,
-                        },
-                        ..Default::default()
-                    },
-                    None,
-                )
-                .expect("create_image_view")
-        })
-        .collect();*/
 
         let images: Vec<Arc<crate::Image>> = vk_images
             .into_iter()
@@ -279,7 +244,7 @@ impl Swapchain {
                     if err == vk::Result::ERROR_OUT_OF_DATE_KHR
                         || err == vk::Result::SUBOPTIMAL_KHR =>
                 {
-                    // Handled in the next frame
+                    
                 }
                 err => {
                     panic!("Could not present image: {:?}", err);

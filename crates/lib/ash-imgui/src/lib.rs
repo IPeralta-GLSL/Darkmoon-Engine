@@ -1,4 +1,4 @@
-// silence unneeded_field_pattern due to offset_of, cast_ptr_alignment in memory management
+
 #![allow(clippy::unneeded_field_pattern, clippy::cast_ptr_alignment)]
 
 use arrayvec::ArrayVec;
@@ -317,14 +317,6 @@ impl Renderer {
                 image_base.copy_from_nonoverlapping(texture.data.as_ptr(), texture.data.len())
             };
 
-            /*let mapped_memory_range = vk::MappedMemoryRange {
-                memory: host_mem,
-                offset: image_mem_offset as vk::DeviceSize,
-                size: vk::DeviceSize::from(align_up(texture.data.len() as u32, atom_size)),
-                ..Default::default()
-            };*/
-            /*unsafe { device.flush_mapped_memory_ranges(slice::from_ref(&mapped_memory_range)) }
-            .unwrap();*/
         }
 
         Self {
@@ -709,27 +701,6 @@ impl Renderer {
                 assert_eq!(index_offset, next_index_offset);
             }
 
-            /*let mapped_ranges = [
-                vk::MappedMemoryRange {
-                    memory: self.host_mem,
-                    offset: vertex_mem_offset as vk::DeviceSize,
-                    size: vk::DeviceSize::from(align_up(
-                        (vertex_offset * mem::size_of::<DrawVert>()) as u32,
-                        self.atom_size,
-                    )),
-                    ..Default::default()
-                },
-                vk::MappedMemoryRange {
-                    memory: self.host_mem,
-                    offset: index_mem_offset as vk::DeviceSize,
-                    size: vk::DeviceSize::from(align_up(
-                        (index_offset * mem::size_of::<DrawIdx>()) as u32,
-                        self.atom_size,
-                    )),
-                    ..Default::default()
-                },
-            ];*/
-            //unsafe { device.flush_mapped_memory_ranges(&mapped_ranges) }.unwrap();
         }
     }
 }

@@ -19,7 +19,6 @@ impl WorldRenderer {
     ) -> anyhow::Result<Self> {
         let mut world_renderer = Self::new_empty(render_extent, temporal_upscale_extent, backend)?;
 
-        // BINDLESS_LUT_BRDF_FG
         world_renderer.add_image_lut(crate::lut_renderers::BrdfFgLutComputer, 0);
 
         {
@@ -43,14 +42,11 @@ impl WorldRenderer {
 
             let handle = world_renderer.add_image(blue_noise_img);
 
-            // BINDLESS_LUT_BLUE_NOISE_256_LDR_RGBA_0
             assert_eq!(handle.0, 1);
         }
 
-        // BINDLESS_LUT_BEZOLD_BRUCKE
         world_renderer.add_image_lut(crate::lut_renderers::BezoldBruckeLutComputer, 2);
 
-        // Build an empty TLAS to create the resources. We'll update it at runtime.
         if backend.device.ray_tracing_enabled() {
             world_renderer.build_ray_tracing_top_level_acceleration();
         }

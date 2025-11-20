@@ -77,7 +77,6 @@ impl SunController {
         let y2 = towards_sun.y * towards_sun.y;
         let y4 = y2 * y2;
 
-        // Mathematica goes brrrrrrr
         let a = -y2 + 2.0 * t2 * (-1.0 + y2) + (y4 - 4.0 * t2 * y2 * (-1.0 + y2)).sqrt();
         let b = 2.0 * t2 * (-1.0 + y2);
         let xz_len = (a / b).sqrt();
@@ -102,13 +101,10 @@ impl SunController {
 
         let xz_norm = xz.normalize_or_zero();
 
-        // The controller has a singularity in the second outer ring.
-        // This rotation will kick it out.
         let rotation_strength = smoothstep(1.2, 1.5, xz.length());
         let delta = *ref_frame * Vec3::new(-delta_x, 0.0, -delta_y);
         let move_align = delta.xz().perp_dot(xz_norm);
 
-        // Working in projective geometry, add the new input
         xz += (delta * MOVE_SPEED).xz();
 
         let rm = Mat2::from_angle(move_align * rotation_strength);
@@ -117,7 +113,7 @@ impl SunController {
         {
             let len = xz.length();
             if len > 2.0 {
-                // Second outer ring; reflect to the other side.
+                
                 xz *= -(4.0 - len) / len;
             }
         }
@@ -298,11 +294,9 @@ pub struct SceneElement {
     
     #[serde(skip)]
     pub bounding_box: Option<Aabb>,
-    
-    // For GLTF files with multiple nodes/meshes
+
     pub mesh_nodes: Vec<MeshNode>,
-    
-    // Indicates if this element represents a single mesh or a collection
+
     pub is_compound: bool,
 }
 

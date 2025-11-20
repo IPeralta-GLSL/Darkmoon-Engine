@@ -6,7 +6,6 @@ use log::{debug, info, warn};
 use std::sync::Arc;
 use parking_lot::Mutex;
 
-/// Prioridad de carga de un asset
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LoadPriority {
     Low = 0,
@@ -15,7 +14,6 @@ pub enum LoadPriority {
     Critical = 3,
 }
 
-/// Solicitud de carga de asset
 #[derive(Debug, Clone)]
 pub struct LoadRequest {
     pub resource_id: ResourceId,
@@ -24,7 +22,6 @@ pub struct LoadRequest {
     pub lod_level: LodLevel,
 }
 
-/// Tipo de asset detectado
 #[derive(Debug, Clone, PartialEq)]
 pub enum AssetType {
     Mesh,
@@ -35,7 +32,6 @@ pub enum AssetType {
     Unknown,
 }
 
-/// Datos de un asset cargado
 #[derive(Debug, Clone)]
 pub struct AssetData {
     pub asset_type: AssetType,
@@ -53,7 +49,6 @@ impl AssetData {
     }
 }
 
-/// Metadatos de un asset
 #[derive(Debug, Clone)]
 pub struct AssetMetadata {
     pub original_size: u64,
@@ -75,7 +70,6 @@ impl Default for AssetMetadata {
     }
 }
 
-/// Cargador síncrono de assets
 #[derive(Clone)]
 pub struct AssetLoader {
     base_path: String,
@@ -84,12 +78,11 @@ pub struct AssetLoader {
 }
 
 impl AssetLoader {
-    /// Crea un nuevo cargador de assets
+    
     pub fn new(max_concurrent_loads: usize, base_path: &str) -> Result<Self> {
         info!("Inicializando cargador de assets con {} workers concurrentes", max_concurrent_loads);
         info!("Directorio base: {}", base_path);
-        
-        // Verificar que el directorio base existe
+
         let path = Path::new(base_path);
         if !path.exists() {
             warn!("Directorio base no existe, creándolo: {}", base_path);
@@ -102,10 +95,9 @@ impl AssetLoader {
             current_loads: Arc::new(Mutex::new(0)),
         })
     }
-    
-    /// Carga un asset de forma asíncrona
+
     pub async fn load_asset(&self, request: &LoadRequest) -> Result<AssetData> {
-        // Esperar hasta que podamos cargar (control de concurrencia simple)
+        
         loop {
             {
                 let mut current = self.current_loads.lock();
@@ -114,11 +106,10 @@ impl AssetLoader {
                     break;
                 }
             }
-            // Esperar un poco antes de intentar de nuevo
+            
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        
-        // Asegurar que decrementemos el contador al final
+
         let _guard = scopeguard::guard((), |_| {
             let mut current = self.current_loads.lock();
             *current -= 1;
@@ -127,20 +118,16 @@ impl AssetLoader {
         debug!("Cargando asset: {} con prioridad {:?}", request.resource_id, request.priority);
         
         let full_path = Path::new(&self.base_path).join(&request.path);
-        
-        // Verificar que el archivo existe
+
         if !full_path.exists() {
             return Err(anyhow::anyhow!("Archivo no encontrado: {}", full_path.display()));
         }
-        
-        // Detectar tipo de asset por extensión
+
         let asset_type = self.detect_asset_type(&full_path);
-        
-        // Cargar el archivo
+
         let data = fs::read(&full_path)?;
         let original_size = data.len() as u64;
-        
-        // Procesar según el nivel de detalle solicitado
+
         let processed_data = self.process_lod_data(data, &asset_type, request.lod_level)?;
         
         let metadata = AssetMetadata {
@@ -164,14 +151,12 @@ impl AssetLoader {
         
         Ok(asset_data)
     }
-    
-    /// Carga múltiples assets en paralelo
+
     pub async fn load_multiple_assets(&self, requests: Vec<LoadRequest>) -> Vec<Result<AssetData>> {
         let futures = requests.iter().map(|request| self.load_asset(request));
         futures::future::join_all(futures).await
     }
-    
-    /// Precarga assets basándose en patrones predictivos
+
     pub async fn preload_assets(&self, patterns: &[String]) -> Result<Vec<AssetData>> {
         let mut load_requests = Vec::new();
         
@@ -182,7 +167,7 @@ impl AssetLoader {
                     resource_id: file_path.clone(),
                     path: file_path,
                     priority: LoadPriority::Low,
-                    lod_level: LodLevel::Low, // Precarga con baja calidad
+                    lod_level: LodLevel::Low, 
                 };
                 load_requests.push(request);
             }
@@ -199,8 +184,7 @@ impl AssetLoader {
         info!("Precargados {} assets exitosamente", successful_assets.len());
         Ok(successful_assets)
     }
-    
-    /// Detecta el tipo de asset basándose en la extensión del archivo
+
     fn detect_asset_type(&self, path: &Path) -> AssetType {
         match path.extension().and_then(|ext| ext.to_str()) {
             Some("gltf") | Some("glb") | Some("obj") | Some("fbx") => AssetType::Mesh,
@@ -211,64 +195,58 @@ impl AssetLoader {
             _ => AssetType::Unknown,
         }
     }
-    
-    /// Obtiene la cadena de formato del archivo
+
     fn get_format_string(&self, path: &Path) -> String {
         path.extension()
             .and_then(|ext| ext.to_str())
             .unwrap_or("unknown")
             .to_uppercase()
     }
-    
-    /// Procesa los datos según el nivel de detalle solicitado
+
     fn process_lod_data(&self, data: Vec<u8>, asset_type: &AssetType, lod_level: LodLevel) -> Result<Vec<u8>> {
         match asset_type {
             AssetType::Texture => self.process_texture_lod(data, lod_level),
             AssetType::Mesh => self.process_mesh_lod(data, lod_level),
-            _ => Ok(data), // Para otros tipos, devolver datos originales
+            _ => Ok(data), 
         }
     }
-    
-    /// Procesa texturas según el nivel de detalle
+
     fn process_texture_lod(&self, data: Vec<u8>, lod_level: LodLevel) -> Result<Vec<u8>> {
         match lod_level {
-            LodLevel::High => Ok(data), // Calidad completa
+            LodLevel::High => Ok(data), 
             LodLevel::Medium => {
-                // En una implementación real, aquí reduciríamos la resolución al 50%
+                
                 debug!("Procesando textura a calidad media");
                 Ok(data)
             }
             LodLevel::Low => {
-                // En una implementación real, aquí reduciríamos la resolución al 25%
+                
                 debug!("Procesando textura a calidad baja");
                 Ok(data)
             }
         }
     }
-    
-    /// Procesa meshes según el nivel de detalle
+
     fn process_mesh_lod(&self, data: Vec<u8>, lod_level: LodLevel) -> Result<Vec<u8>> {
         match lod_level {
-            LodLevel::High => Ok(data), // Malla completa
+            LodLevel::High => Ok(data), 
             LodLevel::Medium => {
-                // En una implementación real, aquí simplificaríamos la geometría
+                
                 debug!("Procesando malla a calidad media");
                 Ok(data)
             }
             LodLevel::Low => {
-                // En una implementación real, aquí simplificaríamos más la geometría
+                
                 debug!("Procesando malla a calidad baja");
                 Ok(data)
             }
         }
     }
-    
-    /// Encuentra archivos que coinciden con un patrón
+
     async fn find_matching_files(&self, pattern: &str) -> Result<Vec<String>> {
         let base_path = Path::new(&self.base_path);
         let mut matching_files = Vec::new();
-        
-        // Implementación simple - en producción usarías un sistema de patrones más sofisticado
+
         let entries = fs::read_dir(base_path)?;
         for entry in entries {
             let entry = entry?;

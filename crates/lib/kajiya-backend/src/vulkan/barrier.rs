@@ -61,7 +61,6 @@ impl ImageBarrier {
     }
 }
 
-// From vk_sync
 pub struct AccessInfo {
     pub stage_mask: vk::PipelineStageFlags,
     pub access_mask: vk::AccessFlags,
@@ -351,7 +350,6 @@ pub fn image_aspect_mask_from_format(format: vk::Format) -> vk::ImageAspectFlags
     }
 }
 
-// TODO: is access type relevant here at all?
 pub fn image_aspect_mask_from_access_type_and_format(
     access_type: AccessType,
     format: vk::Format,
@@ -368,27 +366,9 @@ pub fn image_aspect_mask_from_access_type_and_format(
         | vk::ImageLayout::TRANSFER_SRC_OPTIMAL
         | vk::ImageLayout::TRANSFER_DST_OPTIMAL => Some(image_aspect_mask_from_format(format)),
         _ => {
-            //println!("{:?}", image_layout);
+            
             None
         }
     }
 
-    /*let info = get_access_info(access_type);
-
-    match info.image_layout {
-        vk::ImageLayout::GENERAL => Some(image_aspect_mask_from_format(format)),
-        vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL => Some(image_aspect_mask_from_format(format)),
-        vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL => Some(
-            image_aspect_mask_from_format(format)
-                & (vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL),
-        ),
-        vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL => Some(
-            image_aspect_mask_from_format(format)
-                & (vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL),
-        ),
-        vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL => Some(image_aspect_mask_from_format(format)),
-        vk::ImageLayout::TRANSFER_SRC_OPTIMAL => Some(image_aspect_mask_from_format(format)),
-        vk::ImageLayout::TRANSFER_DST_OPTIMAL => Some(image_aspect_mask_from_format(format)),
-        _ => None,
-    }*/
 }

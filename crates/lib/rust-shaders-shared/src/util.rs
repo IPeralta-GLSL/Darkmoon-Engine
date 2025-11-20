@@ -8,7 +8,6 @@ pub fn get_uv_u(pix: UVec2, tex_size: Vec4) -> Vec2 {
     (pix.as_vec2() + Vec2::splat(0.5)) * tex_size.zw()
 }
 
-// Replacement for abs due to SPIR-V codegen bug. See https://github.com/EmbarkStudios/rust-gpu/issues/468
 pub fn abs_f32(x: f32) -> f32 {
     if x >= 0.0 {
         x
@@ -17,20 +16,14 @@ pub fn abs_f32(x: f32) -> f32 {
     }
 }
 
-// For element `i` of `self`, return `v[i].abs()`
-// Work around for https://github.com/EmbarkStudios/rust-gpu/issues/468.
 pub fn abs_vec2(v: Vec2) -> Vec2 {
     Vec2::new(abs_f32(v.x), abs_f32(v.y))
 }
 
-// For element `i` of `self`, return `v[i].abs()`
-// Work around for https://github.com/EmbarkStudios/rust-gpu/issues/468.
 pub fn abs_vec3(v: Vec3) -> Vec3 {
     Vec3::new(abs_f32(v.x), abs_f32(v.y), abs_f32(v.z))
 }
 
-// For element `i` of `self`, return `v[i].abs()`
-// Work around for https://github.com/EmbarkStudios/rust-gpu/issues/468.
 pub fn abs_vec4(v: Vec4) -> Vec4 {
     Vec4::new(abs_f32(v.x), abs_f32(v.y), abs_f32(v.z), abs_f32(v.w))
 }
@@ -43,7 +36,6 @@ pub fn fast_sqrt_vec3(v: Vec3) -> Vec3 {
     Vec3::new(fast_sqrt(v.x), fast_sqrt(v.y), fast_sqrt(v.z))
 }
 
-// From Eberly 2014
 pub fn fast_acos(x: f32) -> f32 {
     let abs_x = abs_f32(x);
     let mut res = -0.156583 * abs_x + core::f32::consts::FRAC_PI_2;
@@ -55,7 +47,6 @@ pub fn fast_acos(x: f32) -> f32 {
     }
 }
 
-// Replacement for signum due to SPIR-V codegen bug. See https://github.com/EmbarkStudios/rust-gpu/issues/468
 pub fn signum_f32(x: f32) -> f32 {
     if x > 0.0 {
         1.0
@@ -84,16 +75,13 @@ pub fn depth_to_view_z_vec4(depth: Vec4, frame_constants: &FrameConstants) -> Ve
         .recip()
 }
 
-// Note: `const_mat3` is initialized with columns, while `float3x3` in HLSL is row-order,
-// therefore the initializers _appear_ transposed compared to HLSL.
-// The difference is only in the `top` and `bottom` ones; the others are symmetric.
 pub const CUBE_MAP_FACE_ROTATIONS: [Mat3; 6] = [
-    Mat3::from_cols_array_2d(&[[0.0, 0.0, -1.0], [0.0, -1.0, 0.0], [-1.0, 0.0, 0.0]]), // right
-    Mat3::from_cols_array_2d(&[[0.0, 0.0, 1.0], [0.0, -1.0, 0.0], [1.0, 0.0, 0.0]]),   // left
-    Mat3::from_cols_array_2d(&[[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]),   // top
-    Mat3::from_cols_array_2d(&[[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]]),   // bottom
-    Mat3::from_cols_array_2d(&[[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]),  // back
-    Mat3::from_cols_array_2d(&[[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]]),  // front
+    Mat3::from_cols_array_2d(&[[0.0, 0.0, -1.0], [0.0, -1.0, 0.0], [-1.0, 0.0, 0.0]]), 
+    Mat3::from_cols_array_2d(&[[0.0, 0.0, 1.0], [0.0, -1.0, 0.0], [1.0, 0.0, 0.0]]),   
+    Mat3::from_cols_array_2d(&[[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]),   
+    Mat3::from_cols_array_2d(&[[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]]),   
+    Mat3::from_cols_array_2d(&[[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]),  
+    Mat3::from_cols_array_2d(&[[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]]),  
 ];
 
 pub fn radical_inverse_vdc(mut bits: u32) -> f32 {
@@ -102,15 +90,13 @@ pub fn radical_inverse_vdc(mut bits: u32) -> f32 {
     bits = ((bits & 0x33333333) << 2) | ((bits & 0xCCCCCCCC) >> 2);
     bits = ((bits & 0x0F0F0F0F) << 4) | ((bits & 0xF0F0F0F0) >> 4);
     bits = ((bits & 0x00FF00FF) << 8) | ((bits & 0xFF00FF00) >> 8);
-    bits as f32 * 2.328_306_4e-10 // / 0x100000000
+    bits as f32 * 2.328_306_4e-10 
 }
 
 pub fn hammersley(i: u32, n: u32) -> Vec2 {
     Vec2::new((i + 1) as f32 / n as f32, radical_inverse_vdc(i + 1))
 }
 
-// Building an Orthonormal Basis, Revisited
-// http://jcgt.org/published/0006/01/01/
 pub fn build_orthonormal_basis(n: Vec3) -> Mat3 {
     let b1;
     let b2;
@@ -209,8 +195,6 @@ pub fn pack_unit_direction_11_10_11(x: f32, y: f32, z: f32) -> u32 {
     (z << 21) | (y << 11) | x
 }
 
-// The below functions provide a simulation of ByteAddressBuffer and VertexPacked.
-
 pub fn load2f(data: &[u32], byte_offset: u32) -> Vec2 {
     let offset = (byte_offset >> 2) as usize;
     let a = f32::from_bits(data[offset]);
@@ -235,8 +219,6 @@ pub fn load4f(data: &[u32], byte_offset: u32) -> Vec4 {
     Vec4::new(a, b, c, d)
 }
 
-/// Decode mesh vertex from Kajiya ("core", position + normal packed together)
-/// The returned normal is not normalized (but close).
 pub fn load_vertex(data: &[u32], byte_offset: u32) -> (Vec3, Vec3) {
     let core_offset = (byte_offset >> 2) as usize;
     let in_pos = Vec3::new(
@@ -289,12 +271,11 @@ fn clamp_range_for_rgb9e5(x: f32) -> f32 {
 }
 
 fn floor_log2_positive(x: f32) -> i32 {
-    // float bit hacking. Wonder if .log2().floor() wouldn't be faster.
+    
     let f = x.to_bits();
     (f >> 23) as i32 - 127
 }
 
-// workaround rust-gpu bug, will be fixed by #690
 fn mymax(a: i32, b: i32) -> i32 {
     if a >= b {
         a
@@ -303,7 +284,6 @@ fn mymax(a: i32, b: i32) -> i32 {
     }
 }
 
-// https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_shared_exponent.txt
 pub fn float3_to_rgb9e5(rgb: Vec3) -> u32 {
     let rc = clamp_range_for_rgb9e5(rgb.x);
     let gc = clamp_range_for_rgb9e5(rgb.y);
@@ -360,7 +340,7 @@ pub fn hash_combine2(x: u32, y: u32) -> u32 {
     const M: u32 = 1664525;
     const C: u32 = 1013904223;
     let mut seed = (x * M + y + C) * M;
-    // Tempering (from Matsumoto)
+    
     seed ^= seed >> 11;
     seed ^= (seed << 7) & 0x9d2c5680;
     seed ^= (seed << 15) & 0xefc60000;

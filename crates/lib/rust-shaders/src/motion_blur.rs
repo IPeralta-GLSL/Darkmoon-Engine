@@ -16,7 +16,7 @@ pub struct Constants {
 }
 
 fn depth_cmp(center_depth: f32, sample_depth: f32, depth_scale: f32) -> Vec2 {
-    // Clamp NaN's to a value since sample_depth - center_depth can both be INF
+    
     (Vec2::splat(0.5) + vec2(depth_scale, -depth_scale) * (sample_depth - center_depth))
         .clamp(Vec2::ZERO, Vec2::ONE)
 }
@@ -38,7 +38,6 @@ fn sample_weight(
     dc.dot(sc)
 }
 
-// Workaround for https://github.com/EmbarkStudios/rust-gpu/issues/699
 fn clamp_uvec2(a: UVec2, min: UVec2, max: UVec2) -> UVec2 {
     uvec2(a.x.clamp(min.x, max.x), a.y.clamp(min.y, max.y))
 }
@@ -52,7 +51,7 @@ pub fn motion_blur(
     #[spirv(descriptor_set = 0, binding = 4)] output_tex: &Image!(2D, type=f32, sampled=false),
     #[spirv(descriptor_set = 0, binding = 32)] sampler_lnc: &Sampler,
     #[spirv(descriptor_set = 0, binding = 33)] sampler_nnc: &Sampler,
-    //#[spirv(descriptor_set = 0, binding = 33)] sampler_nnc: &Sampler,
+    
     #[spirv(uniform, descriptor_set = 0, binding = 5)] constants: &Constants,
     #[spirv(uniform, descriptor_set = 2, binding = 0)] frame_constants: &FrameConstants,
     #[spirv(global_invocation_id)] px: UVec3,
@@ -62,7 +61,6 @@ pub fn motion_blur(
     let depth_tex_size = constants.depth_tex_size.xy();
     let output_tex_size = constants.output_tex_size.xy();
 
-    // Scramble tile coordinates to diffuse the tile quantization in noise
     let mut noise1: i32;
     let mut tile_offset = px.xy().as_ivec2();
     {
@@ -96,7 +94,6 @@ pub fn motion_blur(
     let center_offset_len = noise / kernel_width as f32 * 0.5;
     let center_uv = uv + tile_velocity * center_offset_len;
 
-    //float3 center_color = texelFetch(inputImage, px, 0).rgb;
     let center_color: Vec4 = input_tex.fetch(clamp_uvec2(
         (center_uv * output_tex_size).as_uvec2(),
         UVec2::splat(0),
@@ -178,7 +175,6 @@ pub fn motion_blur(
             };
         }
 
-        //sum *= 1.0 / (kernel_width * 2 + 1);
         sum *= 1.0 / sample_count;
     }
 

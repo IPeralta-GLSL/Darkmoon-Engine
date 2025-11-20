@@ -43,7 +43,6 @@ impl AppState {
                     .with_decorations(!opt.no_window_decorations),
             )?;
 
-        // Actualizar el título de la ventana con información del dispositivo gráfico
         kajiya.update_window_title();
 
         let runtime = RuntimeState::new(&mut persisted, &mut kajiya.world_renderer, opt);
@@ -101,7 +100,6 @@ fn main() -> anyhow::Result<()> {
         .and_then(|file| Ok(ron::de::from_reader(file)?))
         .unwrap_or_default();
 
-    // If supplying a new scene, clear the previous one.
     if opt.scene.is_some() || opt.mesh.is_some() {
         persisted.scene = SceneState::default();
     }

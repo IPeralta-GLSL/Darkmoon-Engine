@@ -1,8 +1,4 @@
-//! Calculates a look-up table of albedo boost needed to achieve energy
-//! preservation when blending between dielectric and metal attributes
-//! in a physically-based energy-conserving BRDF.
-//!
-//! The calculations are done for F0, but remain correct through F90.
+
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -49,12 +45,7 @@ fn find_mult(metalness: f64, diffuse_albedo: f64) -> Option<f64> {
         diffuse_albedo: diffuse_albedo * (1.0 - metalness),
     };
 
-    //dbg!(&blend_brdf);
-
     let reflectance_blend_of_brdfs = lerp(dielectric.calculate(), metallic.calculate(), metalness);
-
-    //dbg!(blend_of_brdfs);
-    //dbg!(blended_brdf);
 
     let mut search_result: Option<f64> = None;
     let mut mult_advance = 0.0625;
@@ -72,11 +63,10 @@ fn find_mult(metalness: f64, diffuse_albedo: f64) -> Option<f64> {
         if diff >= 0.0 {
             search_result = Some(mult);
             if diff < 1e-30 {
-                //println!("Converged in {} steps; mult: {}, err: {}", step, mult, diff);
+                
                 break;
             }
 
-            // Binary search
             mult = prev_mult;
             mult_advance *= 0.5;
         }
@@ -98,11 +88,10 @@ const LUT_WIDTH: u32 = 64;
 const LUT_HEIGHT: u32 = 64;
 
 fn calculate_lut_texture() {
-    // Construct a new by repeated calls to the supplied closure.
+    
     let img = ImageBuffer::from_fn(LUT_WIDTH, LUT_HEIGHT, |x, y| {
         let metalness = x as f64 / (LUT_WIDTH - 1) as f64;
-        let diffuse_albedo = y as f64 / LUT_HEIGHT as f64; // don't include 1.0 as it contains a hotspot
-                                                           //let diffuse_albedo = diffuse_albedo.sqrt();
+        let diffuse_albedo = y as f64 / LUT_HEIGHT as f64; 
 
         let mult = find_mult(metalness, diffuse_albedo)
             .unwrap_or_else(|| panic!("failed to find mult for metalness {}", metalness));
@@ -122,8 +111,7 @@ fn calculate_lut_csv() {
     for y in 0..LUT_HEIGHT {
         for x in 0..LUT_HEIGHT {
             let metalness = x as f64 / (LUT_WIDTH - 1) as f64;
-            let diffuse_albedo = y as f64 / LUT_HEIGHT as f64; // don't include 1.0 as it contains a hotspot
-                                                               //let diffuse_albedo = diffuse_albedo.sqrt();
+            let diffuse_albedo = y as f64 / LUT_HEIGHT as f64; 
 
             let mult = find_mult(metalness, diffuse_albedo)
                 .unwrap_or_else(|| panic!("failed to find mult for metalness {}", metalness));
@@ -168,7 +156,6 @@ fn plot_mult_profile() {
         .map(|i| i as f64 / (SAMPLE_COUNT - 1) as f64)
         .collect();
     let mults = calculate_mults_for_diffuse_albedo(diffuse_albedo, &metalness);
-    //println!("");
 
     let root_area = BitMapBackend::new("plot.png", (600, 400)).into_drawing_area();
     root_area.fill(&WHITE).unwrap();

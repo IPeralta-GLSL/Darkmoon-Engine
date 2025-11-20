@@ -3,7 +3,6 @@ use kajiya_backend::{ash::vk, vulkan::image::*};
 use kajiya_rg::{self as rg, SimpleRenderPass, TemporalRenderGraph};
 use rust_shaders_shared::ssgi::SsgiConstants;
 
-// The Rust shaders currently suffer a perfomance penalty. Tracking: https://github.com/EmbarkStudios/kajiya/issues/24
 const USE_RUST_SHADERS: bool = false;
 
 pub struct SsgiRenderer {
@@ -53,7 +52,7 @@ impl SsgiRenderer {
                     gbuffer_desc.extent_inv_extent_2d().into(),
                     ssgi_tex.desc().extent_inv_extent_2d().into(),
                 ))
-                // .raw_descriptor_set(1, bindless_descriptor_set)
+                
                 .dispatch(ssgi_tex.desc().extent);
         } else {
             SimpleRenderPass::new_compute(rg.add_pass("ssao"), "/shaders/ssgi/ssgi.hlsl")

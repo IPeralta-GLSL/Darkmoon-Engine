@@ -34,7 +34,6 @@ pub fn rev_blur_cs(
             constants.output_extent_y as f32,
         );
     if true {
-        // TODO: do a small Gaussian blur instead of this nonsense
 
         const K: i32 = 1;
         self_col = Vec4::ZERO;
@@ -52,13 +51,12 @@ pub fn rev_blur_cs(
         self_col /= ((2 * K + 1) * (2 * K + 1)) as f32;
     } else {
         let uv = (px.truncate().as_vec2() + Vec2::splat(0.5)) * inv_size;
-        //float4 self_col = input_tex[px / 2];
+        
         self_col = input_tex.sample_by_lod(*sampler_lnc, uv, 0.0);
     }
 
     let exponential_falloff = 0.6;
 
-    // BUG: when `self_weight` is 1.0, the `w` here should be 1.0, not `exponential_falloff`
     unsafe {
         output_tex.write(
             px.truncate(),

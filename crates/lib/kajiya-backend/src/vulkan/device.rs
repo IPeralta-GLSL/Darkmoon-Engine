@@ -25,9 +25,6 @@ use std::{
     sync::Arc,
 };
 
-/// Descriptor count to subtract from the max bindless descriptor count,
-/// so that we don't overflow the max when using bindless _and_ non-bindless descriptors
-/// in the same shader stage.
 pub const RESERVED_DESCRIPTOR_COUNT: u32 = 32;
 
 pub struct Queue {
@@ -61,7 +58,7 @@ impl PendingResourceReleases {
 }
 
 pub struct DeviceFrame {
-    //pub(crate) linear_allocator_pool: vk_mem::AllocatorPool,
+    
     pub swapchain_acquired_semaphore: Option<vk::Semaphore>,
     pub rendering_complete_semaphore: Option<vk::Semaphore>,
     pub main_command_buffer: CommandBuffer,
@@ -73,7 +70,7 @@ pub struct DeviceFrame {
 pub struct CommandBuffer {
     pub raw: vk::CommandBuffer,
     pub submit_done_fence: vk::Fence,
-    //pool: vk::CommandPool,
+    
 }
 
 impl CommandBuffer {
@@ -106,7 +103,7 @@ impl CommandBuffer {
 
         Ok(CommandBuffer {
             raw: cb,
-            //pool,
+            
             submit_done_fence,
         })
     }
@@ -120,13 +117,7 @@ impl DeviceFrame {
         queue_family: &QueueFamily,
     ) -> Self {
         Self {
-            /*linear_allocator_pool: global_allocator
-            .create_pool(&{
-                let mut info = vk_mem::AllocatorPoolCreateInfo::default();
-                info.flags = vk_mem::AllocatorPoolCreateFlags::LINEAR_ALGORITHM;
-                info
-            })
-            .expect("linear allocator"),*/
+            
             swapchain_acquired_semaphore: None,
             rendering_complete_semaphore: None,
             main_command_buffer: CommandBuffer::new(device, queue_family).unwrap(),
@@ -167,7 +158,7 @@ pub struct Device {
 
     pub acceleration_structure_ext: khr::AccelerationStructure,
     pub ray_tracing_pipeline_ext: khr::RayTracingPipeline,
-    // pub ray_query_ext: khr::RayQuery,
+    
     pub ray_tracing_pipeline_properties: vk::PhysicalDeviceRayTracingPipelinePropertiesKHR,
 
     frames: [Mutex<Arc<DeviceFrame>>; 2],
@@ -177,9 +168,6 @@ pub struct Device {
     pub vrs_manager: Mutex<VrsManager>,
 }
 
-// Allowing `Send` on `frames` is technically unsound. There are some checks
-// in place that `Arc<DeviceFrame>` doesn't get retained by the user,
-// but it begs for a clearer solution.
 #[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for Device {}
 
@@ -216,9 +204,9 @@ impl Device {
             vk::KhrImagelessFramebufferFn::name().as_ptr(),
             vk::KhrImageFormatListFn::name().as_ptr(),
             vk::KhrDescriptorUpdateTemplateFn::name().as_ptr(),
-            // Rust-GPU
+            
             vk::KhrShaderFloat16Int8Fn::name().as_ptr(),
-            // DLSS
+            
             #[cfg(feature = "dlss")]
             {
                 b"VK_NVX_binary_import\0".as_ptr() as *const i8
@@ -229,15 +217,15 @@ impl Device {
             },
             #[cfg(feature = "dlss")]
             vk::NvxImageViewHandleFn::name().as_ptr(),
-            // Variable Rate Shading
+            
             vk::KhrFragmentShadingRateFn::name().as_ptr(),
         ];
 
         let ray_tracing_extensions = [
-            vk::KhrVulkanMemoryModelFn::name().as_ptr(), // used in ray tracing shaders
-            vk::KhrPipelineLibraryFn::name().as_ptr(),   // rt dep
-            vk::KhrDeferredHostOperationsFn::name().as_ptr(), // rt dep
-            vk::KhrBufferDeviceAddressFn::name().as_ptr(), // rt dep
+            vk::KhrVulkanMemoryModelFn::name().as_ptr(), 
+            vk::KhrPipelineLibraryFn::name().as_ptr(),   
+            vk::KhrDeferredHostOperationsFn::name().as_ptr(), 
+            vk::KhrBufferDeviceAddressFn::name().as_ptr(), 
             vk::KhrAccelerationStructureFn::name().as_ptr(),
             vk::KhrRayTracingPipelineFn::name().as_ptr(),
         ];
@@ -343,7 +331,6 @@ impl Device {
             debug!("{:#?}", &get_buffer_device_address_features);
             debug!("{:#?}", &fragment_shading_rate_features);
 
-            // The suggested `#[rustfmt::skip]` is not stable
             #[allow(clippy::deprecated_cfg_attr)]
             #[cfg_attr(rustfmt, rustfmt_skip)]
             {
@@ -365,7 +352,6 @@ impl Device {
 
                 assert!(shader_float16_int8.shader_int8 != 0);
 
-                // Enable VRS features if supported, but don't fail if not available
                 if fragment_shading_rate_features.pipeline_fragment_shading_rate != 0 {
                     log::info!("Variable Rate Shading (VRS) pipeline feature supported");
                 }
@@ -434,7 +420,6 @@ impl Device {
                 &mut global_allocator,
                 &universal_queue.family,
             );
-            //let frame2 = DeviceFrame::new(&device, &mut global_allocator, &universal_queue.family);
 
             let immutable_samplers = Self::create_samplers(&device);
             let setup_cb = CommandBuffer::new(&device, &universal_queue.family).unwrap();
@@ -443,7 +428,7 @@ impl Device {
                 khr::AccelerationStructure::new(&pdevice.instance.raw, &device);
             let ray_tracing_pipeline_ext =
                 khr::RayTracingPipeline::new(&pdevice.instance.raw, &device);
-            //let ray_query_ext = khr::RayQuery::new(&pdevice.instance.raw, &device);
+            
             let ray_tracing_pipeline_properties =
                 khr::RayTracingPipeline::get_properties(&pdevice.instance.raw, pdevice.raw);
 
@@ -476,12 +461,12 @@ impl Device {
                 crash_marker_names: Default::default(),
                 acceleration_structure_ext,
                 ray_tracing_pipeline_ext,
-                // ray_query_ext,
+                
                 ray_tracing_pipeline_properties,
                 frames: [
                     Mutex::new(Arc::new(frame0)),
                     Mutex::new(Arc::new(frame1)),
-                    //Mutex::new(Arc::new(frame2)),
+                    
                 ],
                 ray_tracing_enabled,
                 vrs_enabled,
@@ -553,20 +538,12 @@ impl Device {
                 panic!("Unable to begin frame: frame data is being held by user code")
             });
 
-            // Wait for the the GPU to be done with the previously submitted frame,
-            // so that we can access its data again.
-            //
-            // We can't use device.frame[0] before this, or we race with the GPU.
-            //
-            // TODO: the wait here protects more than the command buffers (such as dynamic constants),
-            // but the fence belongs to command buffers, creating a confusing relationship.
             unsafe {
                 puffin::profile_scope!("wait submit done");
 
                 self.raw
                     .wait_for_fences(
-                        // Note: need to wait for both command buffers so that the GPU won't
-                        // be accessing frame[0] any more after this.
+
                         &[
                             frame0.main_command_buffer.submit_done_fence,
                             frame0.presentation_command_buffer.submit_done_fence,
@@ -642,11 +619,8 @@ impl Device {
             let mut frame1 = self.frames[1].lock();
             let frame1: &mut DeviceFrame = Arc::get_mut(&mut frame1).unwrap();
 
-            //let mut frame2 = self.frames[2].lock();
-            //let frame2: &mut DeviceFrame = Arc::get_mut(&mut frame2).unwrap();
-
             std::mem::swap(frame0, frame1);
-            //std::mem::swap(frame1, frame2);
+            
         }
     }
 
@@ -694,26 +668,6 @@ impl Drop for Device {
     }
 }
 
-// TODO
-/*impl Drop for Device {
-    fn drop(&mut self) {
-        let mut frame0 = self.frame0.lock();
-        let mut frame1 = self.frame1.lock();
-
-        let frame0: &mut DeviceFrame = Arc::get_mut(&mut frame0).unwrap_or_else(|| {
-            panic!("Unable to deallocate DeviceFrame: frame data is being held by user code")
-        });
-        let frame1: &mut DeviceFrame = Arc::get_mut(&mut frame1).unwrap_or_else(|| {
-            panic!("Unable to deallocate DeviceFrame: frame data is being held by user code(2)")
-        });
-
-        /*self.global_allocator
-            .destroy_pool(&frame0.linear_allocator_pool)
-            .unwrap();
-
-        self.global_allocator
-            .destroy_pool(&frame1.linear_allocator_pool)
-            .unwrap();*/
     }
 }*/
 

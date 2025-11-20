@@ -146,19 +146,14 @@ pub struct WorldRenderer {
     pub(super) translucent_render_pass: Arc<RenderPass>,
     pub(super) bindless_descriptor_set: vk::DescriptorSet,
     pub(super) meshes: Vec<UploadedTriMesh>,
-    
-    // Store which meshes have translucent materials
+
     pub(super) mesh_has_translucent_materials: Vec<bool>,
 
     pub(super) mesh_lights: Vec<MeshLightSet>,
 
-    // ----
-    // SoA
     pub(super) instances: Vec<MeshInstance>,
     pub(super) instance_handles: Vec<InstanceHandle>,
-    // ----
 
-    // The `usize` indexes into `instances` and `instance_handles`
     pub(super) instance_handle_to_index: HashMap<InstanceHandle, usize>,
 
     pub(super) vertex_buffer: Mutex<Arc<Buffer>>,
@@ -214,10 +209,8 @@ pub struct WorldRenderer {
 
     pub render_overrides: RenderOverrides,
 
-    // One for each render mode
     pub(crate) exposure_state: [ExposureState; 2],
 
-    /// Habilita/deshabilita el ray tracing en tiempo real (UI)
     pub ray_tracing_enabled: bool,
 }
 
@@ -267,17 +260,13 @@ impl DynamicExposureState {
 
 #[derive(Clone, Copy)]
 pub struct ExposureState {
-    /// A value to multiply all lighting by in order to apply exposure compensation
-    /// early in the pipeline, such that lighting values fit in small texture formats.
+
     pub pre_mult: f32,
 
-    /// The remaining multiplier to apply in post.
     pub post_mult: f32,
 
-    // The pre-multiplier in the previous frame.
     pub pre_mult_prev: f32,
 
-    // `pre_mult / pre_mult_prev`
     pub pre_mult_delta: f32,
 }
 
@@ -347,7 +336,7 @@ impl AddMeshOptions {
 
 impl WorldRenderer {
     pub(crate) fn new_empty(
-        // Internal render resolution, before any upsampling
+        
         #[allow(unused_variables)] render_extent: [u32; 2],
         temporal_upscale_extent: [u32; 2],
         backend: &RenderBackend,
@@ -356,28 +345,27 @@ impl WorldRenderer {
             &backend.device,
             RenderPassDesc {
                 color_attachments: &[
-                    // view-space geometry normal; * 2 - 1 to decode
+                    
                     RenderPassAttachmentDesc::new(vk::Format::A2R10G10B10_UNORM_PACK32)
                         .garbage_input(),
-                    // gbuffer
+                    
                     RenderPassAttachmentDesc::new(vk::Format::R32G32B32A32_SFLOAT).garbage_input(),
-                    // velocity
+                    
                     RenderPassAttachmentDesc::new(vk::Format::R16G16B16A16_SFLOAT).garbage_input(),
                 ],
                 depth_attachment: Some(RenderPassAttachmentDesc::new(vk::Format::D32_SFLOAT)),
             },
         );
 
-        // Render pass for translucent materials with forward rendering
         let translucent_render_pass = create_render_pass(
             &backend.device,
             RenderPassDesc {
                 color_attachments: &[
-                    // Final color output with alpha blending - load existing content
+                    
                     RenderPassAttachmentDesc::new(vk::Format::R16G16B16A16_SFLOAT),
                 ],
                 depth_attachment: Some(
-                    // Depth buffer read-only for translucent objects
+                    
                     RenderPassAttachmentDesc::new(vk::Format::D32_SFLOAT).discard_output(),
                 ),
             },
@@ -420,7 +408,6 @@ impl WorldRenderer {
 
         let bindless_descriptor_set = create_bindless_descriptor_set(backend.device.as_ref());
 
-        // `meshes`
         Self::write_descriptor_set_buffer(
             &backend.device.raw,
             bindless_descriptor_set,
@@ -428,7 +415,6 @@ impl WorldRenderer {
             &mesh_buffer,
         );
 
-        // `vertices`
         Self::write_descriptor_set_buffer(
             &backend.device.raw,
             bindless_descriptor_set,
@@ -436,7 +422,6 @@ impl WorldRenderer {
             &vertex_buffer,
         );
 
-        // `bindless_texture_sizes`
         Self::write_descriptor_set_buffer(
             &backend.device.raw,
             bindless_descriptor_set,
@@ -448,13 +433,6 @@ impl WorldRenderer {
         let supersample_offsets = (1..=supersample_count)
             .map(|i| Vec2::new(radical_inverse(i, 2) - 0.5, radical_inverse(i, 3) - 0.5))
             .collect();
-        //let supersample_offsets = vec![Vec2::new(0.0, -0.5), Vec2::new(0.0, 0.5)];
-        /*let supersample_offsets = vec![
-            Vec2::new(0.25, 0.25),
-            Vec2::new(0.25, -0.25),
-            Vec2::new(-0.25, 0.25),
-            Vec2::new(-0.25, -0.25),
-        ];*/
 
         let accel_scratch = backend
             .device
@@ -468,7 +446,7 @@ impl WorldRenderer {
             translucent_render_pass,
 
             reset_reference_accumulation: false,
-            //cube_index_buffer: Arc::new(cube_index_buffer),
+            
             device: backend.device.clone(),
             meshes: Default::default(),
             mesh_has_translucent_materials: Default::default(),
@@ -521,7 +499,7 @@ impl WorldRenderer {
             debug_shading_mode: if backend.device.ray_tracing_enabled() {
                 0
             } else {
-                // RTX OFF; HACK: reflections buffers currently smear without ray tracing.
+                
                 4
             },
             debug_show_wrc: false,
@@ -529,7 +507,7 @@ impl WorldRenderer {
             dynamic_exposure: Default::default(),
             contrast: 1.0,
 
-            sun_size_multiplier: 1.0, // Sun as seen from Earth
+            sun_size_multiplier: 1.0, 
             sun_color_multiplier: Vec3::ONE,
             sky_ambient: Vec3::ZERO,
 
@@ -644,13 +622,7 @@ impl WorldRenderer {
                 })
                 .run()
         };
-        /*let loaded_images = {
-            let device = self.device.clone();
-            unique_images
-                .iter()
-                .map(|&asset| load_gpu_image_asset(device.clone(), asset))
-                .collect::<Vec<_>>()
-        };*/
+        
         let loaded_images = loaded_images.into_iter().map(|img| self.add_image(img));
 
         let material_map_to_image: HashMap<AssetRef<GpuImage::Flat>, BindlessImageHandle> =
@@ -672,7 +644,6 @@ impl WorldRenderer {
             }
         }
 
-        // If using emissives as lights, flag it in the material parameters
         if opts.use_lights {
             for mat in materials.iter_mut() {
                 mat.flags |= MeshMaterialFlags::MESH_MATERIAL_FLAG_EMISSIVE_USED_AS_LIGHT;
@@ -763,7 +734,6 @@ impl WorldRenderer {
             index_count: mesh.indices.len() as _,
         });
 
-        // Check if this mesh has any translucent materials
         let has_translucent_materials = mesh
             .materials
             .iter()
@@ -837,8 +807,6 @@ impl WorldRenderer {
         self.instances.swap_remove(index);
         self.instance_handles.swap_remove(index);
 
-        // A new instance could have been moved into this slot in the vec.
-        // Make sure `instance_handle_to_index` reflects this.
         if let Some(new_handle) = self.instance_handles.get(index).copied() {
             self.instance_handle_to_index.insert(new_handle, index);
         }
@@ -867,21 +835,15 @@ impl WorldRenderer {
 
     pub fn set_ray_tracing_enabled(&mut self, enabled: bool) {
         self.ray_tracing_enabled = enabled;
-        
-        // Automatically adjust debug_shading_mode based on ray tracing state
-        // This ensures proper rendering when switching between RT and rasterization
+
         if enabled {
-            // Ray tracing enabled: use full lighting (mode 0)
+            
             self.debug_shading_mode = 0;
         } else {
-            // Ray tracing disabled: use rasterization-compatible mode (mode 4)
-            // Mode 4 typically provides better fallback lighting without RT features
+
             self.debug_shading_mode = 4;
         }
-        
-        // Note: render_mode is independent of ray_tracing_enabled
-        // Standard mode can work with or without ray tracing
-        // Reference mode is for path tracing regardless of ray tracing support
+
     }
     
     pub fn is_ray_tracing_enabled(&self) -> bool {
@@ -896,22 +858,19 @@ impl WorldRenderer {
         self.mesh_has_translucent_materials.get(mesh.0).copied().unwrap_or(false)
     }
 
-    /// Manually set debug shading mode (overrides automatic RT-based selection)
     pub fn set_debug_shading_mode(&mut self, mode: usize) {
         self.debug_shading_mode = mode;
     }
 
-    /// Get current debug shading mode
     pub fn get_debug_shading_mode(&self) -> usize {
         self.debug_shading_mode
     }
 
-    /// Set render mode (Standard/Reference) with proper validation
     pub fn set_render_mode(&mut self, mode: RenderMode) {
         match mode {
             RenderMode::Standard => {
                 self.render_mode = mode;
-                // For standard mode, use current ray tracing setting
+                
                 if self.ray_tracing_enabled {
                     self.debug_shading_mode = 0;
                 } else {
@@ -919,23 +878,22 @@ impl WorldRenderer {
                 }
             },
             RenderMode::Reference => {
-                // Reference mode (path tracing) requires ray tracing support
+                
                 if self.device.ray_tracing_enabled() {
                     self.render_mode = mode;
-                    self.ray_tracing_enabled = true;  // Force enable RT for path tracing
-                    self.debug_shading_mode = 0;      // Use full RT shading
-                    self.reset_reference_accumulation = true;  // Reset accumulation buffer
+                    self.ray_tracing_enabled = true;  
+                    self.debug_shading_mode = 0;      
+                    self.reset_reference_accumulation = true;  
                 } else {
-                    // Fallback to standard mode if RT not available
+                    
                     log::warn!("Path tracing not available without ray tracing support. Falling back to Standard mode.");
                     self.render_mode = RenderMode::Standard;
-                    self.debug_shading_mode = 4;  // Use rasterization mode
+                    self.debug_shading_mode = 4;  
                 }
             },
         }
     }
 
-    /// Get current render mode
     pub fn get_render_mode(&self) -> RenderMode {
         self.render_mode
     }
@@ -945,7 +903,7 @@ impl WorldRenderer {
             .device
             .create_ray_tracing_top_acceleration(
                 &RayTracingTopAccelerationDesc {
-                    //instances: self.mesh_blas.iter().collect::<Vec<_>>(),
+                    
                     instances: self
                         .instances
                         .iter()
@@ -994,7 +952,7 @@ impl WorldRenderer {
         let accel_scratch = self.accel_scratch.clone();
 
         pass.render(move |api| {
-            //let device = &api.device().raw;
+            
             let resources = &mut api.resources;
             let instance_buffer_address = resources
                 .execution_params
@@ -1024,7 +982,7 @@ impl WorldRenderer {
     }
 
     fn update_pre_exposure(&mut self) {
-        let dt = 1.0 / 60.0; // TODO
+        let dt = 1.0 / 60.0; 
 
         self.dynamic_exposure.update(-self.post.image_log2_lum, dt);
         let ev_mult = (self.ev_shift + self.dynamic_exposure.ev_smoothed()).exp2();
@@ -1035,16 +993,12 @@ impl WorldRenderer {
 
         match self.render_mode {
             RenderMode::Standard => {
-                // Smoothly blend the pre-exposure.
-                // TODO: Ensure we correctly use the previous frame's pre-mult in temporal shaders,
-                // and then nuke/speed-up this blending.
+
                 exposure_state.pre_mult = exposure_state.pre_mult * 0.9 + ev_mult * 0.1;
 
-                // Put the rest in post-exposure.
                 exposure_state.post_mult = ev_mult / exposure_state.pre_mult;
             }
             RenderMode::Reference => {
-                // The path tracer doesn't need pre-exposure.
 
                 exposure_state.pre_mult = 1.0;
                 exposure_state.post_mult = ev_mult;
@@ -1119,22 +1073,6 @@ impl WorldRenderer {
         )
         .build();
 
-        // Re-shuffle the jitter sequence if we've just used it up
-        /*if 0 == self.frame_idx % self.samples.len() as u32 && self.frame_idx > 0 {
-            use rand::{rngs::SmallRng, seq::SliceRandom, SeedableRng};
-            let mut rng = SmallRng::seed_from_u64(self.frame_idx as u64);
-
-            let prev_sample = self.samples.last().copied();
-            loop {
-                // Will most likely shuffle only once. Re-shuffles if the first sample
-                // in the new sequence is the same as the last sample in the last.
-                self.samples.shuffle(&mut rng);
-                if self.samples.first().copied() != prev_sample {
-                    break;
-                }
-            }
-        }*/
-
         view_constants.set_pixel_offset(
             self.taa.current_supersample_offset,
             frame_desc.render_extent.into(),
@@ -1162,15 +1100,12 @@ impl WorldRenderer {
             })
             .collect();
 
-        // Initialize constants for the maximum allowed cascade count, even if we're not using them,
-        // so that we don't need to change the layout of frame constants up to this limit.
         let mut ircache_cascades: [IrcacheCascadeConstants; IRCACHE_CASCADE_COUNT] =
             Default::default();
 
         self.ircache
             .update_eye_position(view_constants.eye_position());
 
-        // Actually set the cascade constants we're using
         for (i, c) in self.ircache.constants().iter().copied().enumerate() {
             ircache_cascades[i] = c;
         }

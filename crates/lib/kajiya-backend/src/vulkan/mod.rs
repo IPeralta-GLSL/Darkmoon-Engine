@@ -78,8 +78,7 @@ impl RenderBackend {
         } else {
             physical_devices
                 .into_iter()
-                // If there are multiple devices with the same score, `max_by_key` would choose the last,
-                // and we want to preserve the order of devices from `enumerate_physical_devices`.
+
                 .rev()
                 .max_by_key(|device| match device.properties.device_type {
                     vk::PhysicalDeviceType::INTEGRATED_GPU => 200,
@@ -117,7 +116,4 @@ impl RenderBackend {
         })
     }
 
-    /*fn maintain(&mut self) {
-        self.images.maintain();
-    }*/
 }

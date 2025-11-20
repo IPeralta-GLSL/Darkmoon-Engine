@@ -79,7 +79,6 @@ impl Sequence {
             .get(idx.saturating_sub(1))
             .map_or(-t_delta, |k| k.t);
 
-        // Insert with the same `t` as the previous one, then shift after.
         self.items.insert(idx, SequenceItem::new(prev_t, value));
 
         self.apply_t_delta_from_index(idx, t_delta);
@@ -221,7 +220,6 @@ impl CameraPlaybackSequence {
             return None;
         }
 
-        // Sample each component separately
         let pos_x = self.camera_position_x_spline.clamped_sample(t)?;
         let pos_y = self.camera_position_y_spline.clamped_sample(t)?;
         let pos_z = self.camera_position_z_spline.clamped_sample(t)?;

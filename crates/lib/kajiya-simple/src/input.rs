@@ -9,7 +9,6 @@ use winit::{
 };
 use gilrs::{Gilrs, Button, Axis, EventType};
 
-// Gamepad button mapping
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GamepadButton {
     A,
@@ -31,7 +30,6 @@ pub enum GamepadButton {
     RightTrigger,
 }
 
-// Gamepad axis mapping  
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GamepadAxis {
     LeftStickX,
@@ -122,7 +120,7 @@ impl GamepadState {
     }
 
     pub fn set_axis(&mut self, axis: GamepadAxis, value: f32) {
-        // Apply deadzone
+        
         let deadzone = 0.1;
         let final_value = if value.abs() < deadzone { 0.0 } else { value };
         self.axes.insert(axis, final_value);
@@ -136,8 +134,7 @@ impl GamepadState {
 
     pub fn update_from_gilrs(&mut self, gilrs: &mut Gilrs) {
         self.connected = false;
-        
-        // Check for any connected gamepad
+
         for (_id, gamepad) in gilrs.gamepads() {
             if gamepad.is_connected() {
                 self.connected = true;
@@ -151,7 +148,6 @@ impl GamepadState {
             return;
         }
 
-        // Process events
         while let Some(gilrs::Event { id: _, event, time: _ }) = gilrs.next_event() {
             match event {
                 EventType::ButtonPressed(button, _) => {
@@ -173,7 +169,6 @@ impl GamepadState {
             }
         }
 
-        // Update trigger buttons based on axis values
         let left_trigger = self.get_axis(GamepadAxis::LeftTrigger);
         let right_trigger = self.get_axis(GamepadAxis::RightTrigger);
         
@@ -324,7 +319,6 @@ impl KeyMap {
     }
 }
 
-// GamepadMap para botones
 pub struct GamepadButtonMap {
     axis: InputAxis,
     multiplier: f32,
@@ -346,7 +340,6 @@ impl GamepadButtonMap {
     }
 }
 
-// GamepadMap para ejes
 pub struct GamepadAxisMap {
     axis: InputAxis,
     multiplier: f32,
@@ -468,7 +461,6 @@ impl GamepadMap {
             return result;
         }
 
-        // Handle button bindings
         for (button, s) in &mut self.button_bindings {
             #[allow(clippy::collapsible_else_if)]
             if s.map.activation_time > 1e-10 {
@@ -485,7 +477,6 @@ impl GamepadMap {
             *result.entry(s.map.axis).or_default() += s.activation.powi(2) * s.map.multiplier;
         }
 
-        // Handle axis bindings
         for (axis, map) in &self.axis_bindings {
             let axis_value = gamepad.get_axis(*axis);
             *result.entry(map.axis).or_default() += axis_value * map.multiplier;

@@ -80,7 +80,7 @@ pub struct RuntimeState {
     triangle_culler: TriangleCuller,
     pub streaming_integration: crate::streaming_integration::StreamingIntegration,
     pub ui_windows: UiWindowsState,
-    // Currently loaded scene file path for saving changes
+    
     pub current_scene_path: Option<PathBuf>,
 }
 
@@ -103,11 +103,6 @@ impl RuntimeState {
             .with(YawPitch::new().rotation_quat(persisted.camera.rotation))
             .with(Smooth::default())
             .build();
-
-        // Mitsuba match
-        /*let mut camera = camera::FirstPersonCamera::new(Vec3::new(-2.0, 4.0, 8.0));
-        camera.fov = 35.0 * 9.0 / 16.0;
-        camera.look_at(Vec3::new(0.0, 0.75, 0.0));*/
 
         let mouse: MouseState = Default::default();
         let keyboard: KeyboardState = Default::default();
@@ -155,7 +150,6 @@ impl RuntimeState {
             current_scene_path: None,
         };
 
-        // Load meshes that the persisted scene was referring to
         persisted.scene.elements.retain_mut(|elem| {
             match res.load_mesh(world_renderer, &elem.source) {
                 Ok(mesh) => {
@@ -170,14 +164,12 @@ impl RuntimeState {
             }
         });
 
-        // Load the IBL too
         if let Some(ibl) = persisted.scene.ibl.as_ref() {
             if world_renderer.ibl.load_image(ibl).is_err() {
                 persisted.scene.ibl = None;
             }
         }
 
-        // Initialize streaming system automatically
         res.streaming_integration.request_initialization();
         log::info!("Resource streaming system initialized automatically at startup");
 
@@ -194,7 +186,6 @@ impl RuntimeState {
         }
     }
 
-    /// Convenience method for clearing scene from GUI (takes FrameContext)
     pub fn clear_scene_from_gui(
         &mut self,
         persisted: &mut PersistedState,
@@ -241,19 +232,17 @@ impl RuntimeState {
                 source: MeshSource::File(mesh_path),
                 instance: render_instance,
                 transform,
-                bounding_box: None, // Will be calculated later when mesh data is available
+                bounding_box: None, 
                 mesh_nodes: Vec::new(),
                 is_compound: false,
             });
         }
 
-        // Store the scene path for saving changes later
         self.current_scene_path = Some(scene_path);
 
         Ok(())
     }
 
-    /// Convenience method for loading a scene from a path string (used by the GUI)
     pub fn load_scene_from_path(
         &mut self,
         persisted: &mut PersistedState,
@@ -263,37 +252,34 @@ impl RuntimeState {
         self.load_scene(persisted, &mut ctx.world_renderer, path)
     }
 
-    /// Save the current scene to a .dmoon file
     pub fn save_scene_to_path(
         &self,
         persisted: &PersistedState,
         path: impl Into<PathBuf>,
     ) -> anyhow::Result<()> {
         let path = path.into();
-        
-        // Convert persisted scene elements back to SceneDesc format
+
         let instances: Vec<SceneInstanceDesc> = persisted.scene.elements.iter().map(|elem| {
-            // Extract mesh path from the source
+            
             let mesh_path = match &elem.source {
                 MeshSource::File(file_path) => {
-                    // Convert to VFS format (always starts with /)
-                    let path_str = file_path.to_string_lossy();
                     
-                    // Handle absolute paths that contain "assets/"
+                    let path_str = file_path.to_string_lossy();
+
                     if let Some(assets_pos) = path_str.find("assets/") {
-                        // Extract everything after "assets/"
-                        let relative_path = &path_str[assets_pos + 7..]; // Skip "assets/"
+                        
+                        let relative_path = &path_str[assets_pos + 7..]; 
                         format!("/{}", relative_path)
                     } 
-                    // Handle relative paths starting with "assets/"
+                    
                     else if path_str.starts_with("assets/") {
-                        format!("/{}", &path_str[7..]) // Skip "assets/"
+                        format!("/{}", &path_str[7..]) 
                     }
-                    // Handle paths already in VFS format (starting with /)
+                    
                     else if path_str.starts_with("/") {
                         path_str.to_string()
                     }
-                    // Fallback for other cases
+                    
                     else {
                         format!("/{}", path_str)
                     }
@@ -313,7 +299,6 @@ impl RuntimeState {
 
         let scene_desc = SceneDesc { instances };
 
-        // Write to file with pretty formatting
         let file = File::create(&path)
             .with_context(|| format!("Creating scene file {:?}", path))?;
         
@@ -327,7 +312,6 @@ impl RuntimeState {
         Ok(())
     }
 
-    /// Save changes to the currently loaded scene file (if any)
     pub fn save_current_scene(&self, persisted: &PersistedState) -> anyhow::Result<()> {
         if let Some(scene_path) = &self.current_scene_path {
             self.save_scene_to_path(persisted, scene_path.clone())?;
@@ -348,14 +332,12 @@ impl RuntimeState {
             smooth.rotation_smoothness = persisted.movement.camera_smoothness;
         }
 
-        // When starting camera rotation, hide the mouse cursor, and capture it to the window.
         if (self.mouse.buttons_pressed & (1 << 2)) != 0 {
             let _ = ctx.window.set_cursor_grab(winit::window::CursorGrabMode::Confined);
             self.grab_cursor_pos = self.mouse.physical_position;
             ctx.window.set_cursor_visible(false);
         }
 
-        // When ending camera rotation, release the cursor.
         if (self.mouse.buttons_released & (1 << 2)) != 0 {
             let _ = ctx.window.set_cursor_grab(winit::window::CursorGrabMode::None);
             ctx.window.set_cursor_visible(true);
@@ -367,8 +349,7 @@ impl RuntimeState {
         for (axis, value) in gamepad_input {
             *input.entry(axis).or_default() += value;
         }
-        
-        // Clamp the combined values
+
         for value in input.values_mut() {
             *value = value.clamp(-1.0, 1.0);
         }
@@ -379,8 +360,7 @@ impl RuntimeState {
             * 4.0f32.powf(input["boost"]);
 
         if (self.mouse.buttons_held & (1 << 2)) != 0 {
-            // While we're rotating, the cursor should not move, so that upon revealing it,
-            // it will be where we started the rotation motion at.
+
             let _ = ctx
                 .window
                 .set_cursor_position(winit::dpi::PhysicalPosition::new(
@@ -395,12 +375,11 @@ impl RuntimeState {
             );
         }
 
-        // Gamepad camera rotation with right stick
         if self.gamepad.connected {
             let gamepad_input = self.gamepad_movement_map.map(&self.gamepad, ctx.dt_filtered);
             if let (Some(&look_right), Some(&look_up)) = (gamepad_input.get("look_right"), gamepad_input.get("look_up")) {
                 if look_right.abs() > 0.1 || look_up.abs() > 0.1 {
-                    let sensitivity = 100.0; // Gamepad sensitivity
+                    let sensitivity = 100.0; 
                     self.camera.driver_mut::<YawPitch>().rotate_yaw_pitch(
                         sensitivity * look_right * ctx.dt_filtered,
                         sensitivity * look_up * ctx.dt_filtered,
@@ -491,15 +470,9 @@ impl RuntimeState {
                         .sun
                         .controller
                         .view_space_rotate(&ref_frame, delta_x, delta_y);
-                } /*LeftClickEditMode::MoveLocalLights => {
-                      persisted.light.lights.theta += theta_delta;
-                      persisted.light.lights.phi += phi_delta;
-                  }*/
+                } 
             }
         }
-
-        //state.sun.phi += dt;
-        //state.sun.phi %= std::f32::consts::TAU;
 
         let sun_direction = persisted.light.sun.controller.towards_sun();
         if (sun_direction.dot(self.sun_direction_interp) - 1.0).abs() > 1e-5 {
@@ -526,11 +499,11 @@ impl RuntimeState {
         ) {
             match ctx.world_renderer.get_render_mode() {
                 RenderMode::Standard => {
-                    //camera.convergence_sensitivity = 1.0;
+                    
                     ctx.world_renderer.set_render_mode(RenderMode::Reference);
                 }
                 RenderMode::Reference => {
-                    //camera.convergence_sensitivity = 0.0;
+                    
                     ctx.world_renderer.set_render_mode(RenderMode::Standard);
                 }
             };
@@ -543,45 +516,6 @@ impl RuntimeState {
             persisted.light.enable_emissive = !persisted.light.enable_emissive;
         }
 
-        /*if self.keyboard.is_down(VirtualKeyCode::Z) {
-            persisted.light.local_lights.distance /= 0.99;
-        }
-        if self.keyboard.is_down(VirtualKeyCode::X) {
-            persisted.light.local_lights.distance *= 0.99;
-        }*/
-
-        /*#[allow(clippy::comparison_chain)]
-        if light_instances.len() > state.lights.count as usize {
-            for extra_light in light_instances.drain(state.lights.count as usize..) {
-                ctx.world_renderer.remove_instance(extra_light);
-            }
-        } else if light_instances.len() < state.lights.count as usize {
-            light_instances.extend(
-                (0..(state.lights.count as usize - light_instances.len())).map(|_| {
-                    ctx.world_renderer
-                        .add_instance(light_mesh, Vec3::ZERO, Quat::IDENTITY)
-                }),
-            );
-        }
-
-        for (i, inst) in light_instances.iter().enumerate() {
-            let ring_rot = Quat::from_rotation_y(
-                (i as f32) / light_instances.len() as f32 * std::f32::consts::TAU,
-            );
-
-            let rot =
-                Quat::from_euler(EulerRot::YXZ, -state.lights.theta, -state.lights.phi, 0.0)
-                    * ring_rot;
-            ctx.world_renderer.set_instance_transform(
-                *inst,
-                rot * (Vec3::Z * state.lights.distance) + Vec3::new(0.1, 1.2, 0.0),
-                rot,
-            );
-
-            ctx.world_renderer
-                .get_instance_dynamic_parameters_mut(*inst)
-                .emissive_multiplier = state.lights.multiplier;
-        }*/
     }
 
     fn update_objects(&mut self, persisted: &mut PersistedState, ctx: &mut FrameContext) {
@@ -600,13 +534,10 @@ impl RuntimeState {
         let occlusion_culling_enabled = persisted.occlusion_culling.enabled;
         let triangle_culling_enabled = persisted.triangle_culling.enabled;
 
-        // Update occlusion culler config if changed
         self.occlusion_culler.update_config(persisted.occlusion_culling.clone());
-        
-        // Update triangle culler config if changed
+
         self.triangle_culler.update_config(persisted.triangle_culling.clone());
 
-        // Only create frustum if culling is enabled
         let (frustum, view_proj_matrix) = if frustum_culling_enabled || occlusion_culling_enabled {
             let lens = CameraLens {
                 aspect_ratio: ctx.aspect_ratio(),
@@ -627,12 +558,10 @@ impl RuntimeState {
             (None, None)
         };
 
-        // Prepare occlusion culler for new frame
         if occlusion_culling_enabled {
             self.occlusion_culler.prepare_frame();
         }
 
-        // PASS 1: Add visible objects as potential occluders
         if occlusion_culling_enabled {
             for elem in persisted.scene.elements.iter() {
                 if let Some(bounding_box) = &elem.bounding_box {
@@ -644,9 +573,8 @@ impl RuntimeState {
             }
         }
 
-        // PASS 2: Test all objects for visibility
         for elem in persisted.scene.elements.iter_mut() {
-            // Analyze GLTF files to extract nodes if not already done
+            
             if elem.is_compound && elem.mesh_nodes.is_empty() {
                 if let Err(e) = self.analyze_gltf_nodes(elem, ctx.world_renderer) {
                     println!("Warning: Failed to analyze GLTF nodes: {}", e);
@@ -657,7 +585,7 @@ impl RuntimeState {
             
             if frustum_culling_enabled || occlusion_culling_enabled {
                 if elem.is_compound && !elem.mesh_nodes.is_empty() {
-                    // For compound objects (GLTF with multiple nodes), test each node
+                    
                     let mut any_node_visible = false;
                     
                     for node in &elem.mesh_nodes {
@@ -665,11 +593,10 @@ impl RuntimeState {
                         let mut node_visible = true;
                         
                         if let Some(node_aabb) = &node.bounding_box {
-                            // Transform node AABB to world space using both element and node transforms
+                            
                             let combined_transform = elem.transform.affine_transform() * node.local_transform.affine_transform();
                             let world_aabb = node_aabb.transform(&Mat4::from(combined_transform));
-                            
-                            // Test frustum culling first
+
                             if frustum_culling_enabled {
                                 if let Some(ref frustum) = frustum {
                                     node_visible = if persisted.frustum_culling.use_sphere_culling {
@@ -685,8 +612,7 @@ impl RuntimeState {
                                     }
                                 }
                             }
-                            
-                            // Test occlusion culling if still visible after frustum test
+
                             if node_visible && occlusion_culling_enabled {
                                 if let Some(ref view_proj) = view_proj_matrix {
                                     if self.occlusion_culler.is_occluded(&world_aabb, view_proj) {
@@ -701,7 +627,7 @@ impl RuntimeState {
                                 visible_objects += 1;
                             }
                         } else {
-                            // If no bounding box, assume visible
+                            
                             any_node_visible = true;
                             visible_objects += 1;
                         }
@@ -709,10 +635,9 @@ impl RuntimeState {
                     
                     element_is_visible = any_node_visible;
                 } else {
-                    // For simple objects, use the element's bounding box
-                    total_sub_objects += 1;
                     
-                    // Calculate world-space bounding box if not cached
+                    total_sub_objects += 1;
+
                     if elem.bounding_box.is_none() {
                         let default_size = Vec3::splat(persisted.frustum_culling.default_object_size);
                         elem.bounding_box = Some(Aabb::from_center_size(Vec3::ZERO, default_size));
@@ -720,8 +645,7 @@ impl RuntimeState {
 
                     if let Some(local_aabb) = &elem.bounding_box {
                         let world_aabb = local_aabb.transform(&Mat4::from(elem.transform.affine_transform()));
-                        
-                        // Test frustum culling first
+
                         if frustum_culling_enabled {
                             if let Some(ref frustum) = frustum {
                                 element_is_visible = if persisted.frustum_culling.use_sphere_culling {
@@ -738,8 +662,7 @@ impl RuntimeState {
                                 }
                             }
                         }
-                        
-                        // Test occlusion culling if still visible after frustum test
+
                         if element_is_visible && occlusion_culling_enabled {
                             if let Some(ref view_proj) = view_proj_matrix {
                                 if self.occlusion_culler.is_occluded(&world_aabb, view_proj) {
@@ -755,7 +678,7 @@ impl RuntimeState {
                     }
                 }
             } else {
-                // Culling disabled - count all objects
+                
                 if elem.is_compound {
                     total_sub_objects += elem.mesh_nodes.len();
                     visible_objects += elem.mesh_nodes.len();
@@ -765,30 +688,28 @@ impl RuntimeState {
                 }
             }
 
-            // Apply visibility results
             if element_is_visible {
-                // Update instance parameters and transform only for visible objects
+                
                 ctx.world_renderer
                     .get_instance_dynamic_parameters_mut(elem.instance)
                     .emissive_multiplier = persisted.light.emissive_multiplier * emissive_toggle_mult;
                 ctx.world_renderer
                     .set_instance_transform(elem.instance, elem.transform.affine_transform());
-                
-                // Perform triangle culling analysis for visible objects
+
                 if triangle_culling_enabled {
                     self.analyze_triangle_culling(elem, &persisted.triangle_culling, view_proj_matrix.as_ref());
                 }
             } else {
-                // Apply culling based on the chosen method
+                
                 match persisted.frustum_culling.culling_method {
                     CullingMethod::EmissiveMultiplier => {
-                        // Make objects invisible by setting emissive to 0
+                        
                         ctx.world_renderer
                             .get_instance_dynamic_parameters_mut(elem.instance)
                             .emissive_multiplier = 0.0;
                     }
                     CullingMethod::MoveAway => {
-                        // Move objects far away (more effective for GPU culling)
+                        
                         ctx.world_renderer
                             .get_instance_dynamic_parameters_mut(elem.instance)
                             .emissive_multiplier = 0.0;
@@ -799,7 +720,7 @@ impl RuntimeState {
                             .set_instance_transform(elem.instance, culled_transform.affine_transform());
                     }
                     CullingMethod::ScaleToZero => {
-                        // Scale objects to zero size (effective for GPU culling)
+                        
                         ctx.world_renderer
                             .get_instance_dynamic_parameters_mut(elem.instance)
                             .emissive_multiplier = 0.0;
@@ -813,7 +734,6 @@ impl RuntimeState {
             }
         }
 
-        // Optional: Log culling statistics
         if (frustum_culling_enabled || occlusion_culling_enabled) && persisted.frustum_culling.debug_logging {
             static mut FRAME_COUNTER: u32 = 0;
             unsafe {
@@ -831,8 +751,7 @@ impl RuntimeState {
                     }
                     
                     println!("{}", log_msg);
-                    
-                    // Show occlusion culling statistics
+
                     if occlusion_culling_enabled {
                         let stats = self.occlusion_culler.get_statistics();
                         println!("  Occlusion Stats: {} occluders, {:.1}% depth buffer usage", 
@@ -841,8 +760,7 @@ impl RuntimeState {
                 }
             }
         }
-        
-        // Update triangle culling frame counter and potentially log statistics
+
         if triangle_culling_enabled {
             self.triangle_culler.end_frame();
         }
@@ -853,7 +771,7 @@ impl RuntimeState {
         mut ctx: FrameContext,
         persisted: &mut PersistedState,
     ) -> WorldFrameDesc {
-        // Limit framerate. Not particularly precise.
+        
         if self.max_fps != MAX_FPS_LIMIT {
             std::thread::sleep(std::time::Duration::from_micros(
                 1_000_000 / self.max_fps as u64,
@@ -870,8 +788,7 @@ impl RuntimeState {
         let orig_render_overrides = ctx.world_renderer.render_overrides;
 
         self.do_gui(persisted, &mut ctx);
-        
-        // Procesar inicialización pendiente del streaming
+
         if let Err(e) = futures::executor::block_on(
             self.streaming_integration.process_pending_initialization()
         ) {
@@ -882,10 +799,8 @@ impl RuntimeState {
         self.update_objects(persisted, &mut ctx);
         self.update_sun(persisted, &mut ctx);
 
-        // Update bounding boxes for new objects
         self.update_bounding_boxes(persisted, ctx.world_renderer);
-        
-        // Analyze GLTF files for compound objects
+
         let mut elements_to_analyze = Vec::new();
         
         for (index, elem) in persisted.scene.elements.iter().enumerate() {
@@ -952,7 +867,6 @@ impl RuntimeState {
             self.reset_path_tracer = true;
         }
 
-        // Reset accumulation of the path tracer whenever the camera moves
         if (self.reset_path_tracer
             || self
                 .keyboard
@@ -992,7 +906,7 @@ impl RuntimeState {
     }
 
     pub fn play_sequence(&mut self, persisted: &mut PersistedState) {
-        // Allow some time at the start of the playback before the camera starts moving
+        
         const PLAYBACK_WARMUP_DURATION: f32 = 0.5;
 
         let t = self
@@ -1132,7 +1046,7 @@ impl RuntimeState {
             source,
             instance: inst,
             transform,
-            bounding_box: None, // Will be calculated later when mesh data is available
+            bounding_box: None, 
             mesh_nodes: Vec::new(),
             is_compound: false,
         });
@@ -1158,7 +1072,7 @@ impl RuntimeState {
 
                     match extension.as_str() {
                         "hdr" | "exr" => {
-                            // IBL
+                            
                             match world_renderer.ibl.load_image(path) {
                                 Ok(_) => {
                                     persisted.scene.ibl = Some(path.clone());
@@ -1169,13 +1083,13 @@ impl RuntimeState {
                             }
                         }
                         "ron" | "dmoon" => {
-                            // Scene
+                            
                             if let Err(err) = self.load_scene(persisted, world_renderer, path) {
                                 log::error!("Failed to load scene: {:#}", err);
                             }
                         }
                         "gltf" | "glb" => {
-                            // Mesh
+                            
                             if let Err(err) = self.add_mesh_instance(
                                 persisted,
                                 world_renderer,
@@ -1193,20 +1107,14 @@ impl RuntimeState {
         }
     }
 
-    /// Calculate a more accurate bounding box for a mesh instance
     pub fn calculate_mesh_bounding_box(
         &self,
-        _world_renderer: &WorldRenderer, // Prefixed with _ to suppress unused warning
+        _world_renderer: &WorldRenderer, 
         mesh_handle: MeshHandle,
     ) -> Option<Aabb> {
-        // In a real implementation, you would:
-        // 1. Get the mesh data from world_renderer
-        // 2. Calculate the actual AABB from vertex positions
-        // 3. Cache the result
-        
-        // For now, return a default based on mesh handle ID
-        let handle_id = mesh_handle.0; // Assuming MeshHandle has a numeric ID
-        let base_size = 1.0 + (handle_id % 5) as f32; // Vary size based on mesh ID
+
+        let handle_id = mesh_handle.0; 
+        let base_size = 1.0 + (handle_id % 5) as f32; 
         
         Some(Aabb::from_center_size(
             Vec3::ZERO,
@@ -1214,16 +1122,14 @@ impl RuntimeState {
         ))
     }
 
-    /// Update bounding boxes for all scene elements that don't have them
     pub fn update_bounding_boxes(
         &self,
         persisted: &mut PersistedState,
-        _world_renderer: &WorldRenderer, // Prefixed with _ to suppress unused warning
+        _world_renderer: &WorldRenderer, 
     ) {
         for elem in persisted.scene.elements.iter_mut() {
             if elem.bounding_box.is_none() {
-                // Try to get the mesh handle from the instance
-                // This is a simplified version - in practice you'd need to access the mesh data
+
                 if let Some(aabb) = self.calculate_mesh_bounding_box(_world_renderer, MeshHandle(0)) {
                     elem.bounding_box = Some(aabb);
                 }
@@ -1231,18 +1137,16 @@ impl RuntimeState {
         }
     }
 
-    /// Analyze a GLTF file and extract individual mesh nodes for better culling
     pub fn analyze_gltf_nodes(
         &self,
         elem: &mut SceneElement,
-        _world_renderer: &WorldRenderer, // Prefixed with _ to suppress unused warning
+        _world_renderer: &WorldRenderer, 
     ) -> anyhow::Result<()> {
         if let MeshSource::File(path) = &elem.source {
             let extension = path.extension()
                 .and_then(|ext| ext.to_str())
                 .unwrap_or("");
 
-            // Handle direct GLTF files
             if extension == "gltf" || extension == "glb" {
                 let gltf_result = self.load_and_analyze_gltf(path);
                 
@@ -1258,8 +1162,7 @@ impl RuntimeState {
                     }
                     Err(e) => {
                         println!("Warning: Failed to parse GLTF '{}': {}. Using fallback.", path.display(), e);
-                        
-                        // Fallback to mock data if parsing fails
+
                         elem.mesh_nodes = vec![
                             MeshNode {
                                 name: Some("Fallback_Node".to_string()),
@@ -1271,13 +1174,9 @@ impl RuntimeState {
                     }
                 }
             }
-            // Handle .dmoon files that might reference GLTF files
+            
             else if extension == "dmoon" {
-                // For .dmoon files, we need to look at the mesh reference within the file
-                // This is a simplified approach - in a real implementation you'd parse the .dmoon file
-                // For now, we'll check if this element has a mesh reference that points to a GLTF file
-                
-                // Try to extract the GLTF path from the dmoon context
+
                 if let Some(gltf_path) = self.extract_gltf_path_from_dmoon(path) {
                     println!("Found GLTF reference in dmoon file: {}", gltf_path.display());
                     
@@ -1314,23 +1213,19 @@ impl RuntimeState {
         Ok(())
     }
 
-    /// Extract the GLTF path referenced by a dmoon file
     fn extract_gltf_path_from_dmoon(&self, dmoon_path: &std::path::Path) -> Option<std::path::PathBuf> {
         use std::fs;
-        
-        // Try to read and parse the dmoon file
+
         if let Ok(content) = fs::read_to_string(dmoon_path) {
-            // Look for mesh references in the dmoon content
-            // This is a simple approach - looking for .gltf or .glb file references
+
             for line in content.lines() {
                 if line.contains("mesh:") && (line.contains(".gltf") || line.contains(".glb")) {
-                    // Extract the path between quotes
+                    
                     if let Some(start) = line.find('"') {
                         if let Some(end) = line.rfind('"') {
                             if start < end {
                                 let mesh_path = &line[start+1..end];
-                                
-                                // Remove leading slash if present and construct full path
+
                                 let mesh_path = mesh_path.trim_start_matches('/');
                                 let full_path = std::path::Path::new("assets").join(mesh_path);
                                 
@@ -1346,12 +1241,10 @@ impl RuntimeState {
         None
     }
 
-    /// Load and analyze a GLTF file to extract mesh nodes
     fn load_and_analyze_gltf(&self, path: &std::path::Path) -> anyhow::Result<Vec<MeshNode>> {
         use std::fs::File;
         use std::io::BufReader;
-        
-        // Resolve the full path (GLTF files are typically in assets/)
+
         let full_path = if path.is_absolute() {
             path.to_path_buf()
         } else {
@@ -1360,7 +1253,6 @@ impl RuntimeState {
 
         println!("Attempting to load GLTF from: {}", full_path.display());
 
-        // Try to load the GLTF file
         let file = File::open(&full_path)
             .with_context(|| format!("Failed to open GLTF file: {}", full_path.display()))?;
         
@@ -1370,17 +1262,14 @@ impl RuntimeState {
 
         let mut mesh_nodes = Vec::new();
 
-        // Print basic GLTF info
         println!("GLTF file loaded successfully:");
         println!("  - Scenes: {}", gltf.scenes().count());
         println!("  - Nodes: {}", gltf.nodes().count());
         println!("  - Meshes: {}", gltf.meshes().count());
-        
-        // Iterate through all scenes in the GLTF
+
         for (scene_idx, scene) in gltf.scenes().enumerate() {
             println!("Processing scene {}: {:?}", scene_idx, scene.name().unwrap_or("unnamed"));
-            
-            // Process each root node in the scene
+
             for node in scene.nodes() {
                 self.process_gltf_node(&node, Mat4::IDENTITY, &mut mesh_nodes)?;
             }
@@ -1402,7 +1291,6 @@ impl RuntimeState {
         Ok(mesh_nodes)
     }
 
-    /// Recursively process GLTF nodes and extract mesh information
     fn process_gltf_node(
         &self, 
         node: &gltf::Node, 
@@ -1411,17 +1299,14 @@ impl RuntimeState {
     ) -> anyhow::Result<()> {
         let node_name = node.name().unwrap_or("unnamed");
         println!("Processing node: '{}'", node_name);
-        
-        // Get node transform
+
         let node_transform = Mat4::from_cols_array_2d(&node.transform().matrix());
         let combined_transform = parent_transform * node_transform;
 
-        // If this node has a mesh, create a MeshNode
         if let Some(mesh) = node.mesh() {
-            // Extract position, rotation, and scale from the transform matrix
-            let (scale, rotation, translation) = combined_transform.to_scale_rotation_translation();
             
-            // Convert rotation quaternion to Euler angles
+            let (scale, rotation, translation) = combined_transform.to_scale_rotation_translation();
+
             let (x, y, z) = rotation.to_euler(dolly::glam::EulerRot::YXZ);
             let rotation_degrees = Vec3::new(
                 x.to_degrees(),
@@ -1429,9 +1314,8 @@ impl RuntimeState {
                 z.to_degrees()
             );
 
-            // Create bounding box based on mesh (for now, use a reasonable default)
             let max_scale = scale.max_element();
-            let bounding_size = Vec3::splat(max_scale * 2.0); // Reasonable default based on scale
+            let bounding_size = Vec3::splat(max_scale * 2.0); 
             
             let mesh_node = MeshNode {
                 name: Some(node_name.to_string()),
@@ -1454,7 +1338,6 @@ impl RuntimeState {
             println!("  -> Node '{}' has no mesh, checking children", node_name);
         }
 
-        // Recursively process child nodes
         let child_count = node.children().count();
         if child_count > 0 {
             println!("  -> Processing {} children of '{}'", child_count, node_name);
@@ -1466,32 +1349,27 @@ impl RuntimeState {
         Ok(())
     }
 
-    /// Analyze triangle culling for a given scene element
     fn analyze_triangle_culling(
         &mut self,
         elem: &SceneElement,
         _config: &crate::math::triangle_culling::TriangleCullingConfig,
         view_proj_matrix: Option<&Mat4>,
     ) {
-        // For now, we'll generate some example triangles for demonstration
-        // In a real implementation, you would extract actual triangles from the mesh data
+
         let example_triangles = self.generate_example_triangles_for_element(elem);
         
         for triangle in example_triangles {
             self.triangle_culler.test_triangle(&triangle, view_proj_matrix);
         }
     }
-    
-    /// Generate example triangles for demonstration purposes
-    /// In a real implementation, this would extract actual triangles from mesh data
+
     fn generate_example_triangles_for_element(&self, elem: &SceneElement) -> Vec<crate::math::Triangle> {
         let mut triangles = Vec::new();
-        
-        // Transform to world space using element transform
+
         let transform = Mat4::from(elem.transform.affine_transform());
         
         if elem.is_compound {
-            // For compound objects, generate triangles for each mesh node
+            
             for node in &elem.mesh_nodes {
                 if let Some(aabb) = &node.bounding_box {
                     let combined_transform = transform * Mat4::from(node.local_transform.affine_transform());
@@ -1499,7 +1377,7 @@ impl RuntimeState {
                 }
             }
         } else {
-            // For simple objects, generate triangles from the element's bounding box
+            
             if let Some(aabb) = &elem.bounding_box {
                 triangles.extend(self.triangles_from_aabb(aabb, &transform));
             }
@@ -1507,12 +1385,11 @@ impl RuntimeState {
         
         triangles
     }
-    /// Generate triangles representing the faces of an AABB transformed by a given matrix
+    
     fn triangles_from_aabb(&self, aabb: &crate::math::Aabb, transform: &Mat4) -> Vec<crate::math::Triangle> {
         let min_point = aabb.min;
         let max_point = aabb.max;
-        
-        // Create two triangles for one face of the AABB as an example
+
         let v0 = transform.transform_point3(Vec3::new(min_point.x, min_point.y, min_point.z));
         let v1 = transform.transform_point3(Vec3::new(max_point.x, min_point.y, min_point.z));
         let v2 = transform.transform_point3(Vec3::new(max_point.x, max_point.y, min_point.z));
@@ -1524,16 +1401,14 @@ impl RuntimeState {
         ]
     }
 
-    /// Get triangle culling statistics
     pub fn get_triangle_culling_statistics(&self) -> &crate::math::triangle_culling::TriangleCullingStats {
         self.triangle_culler.get_statistics()
     }
 
-    //...existing code...
 }
 
 #[derive(PartialEq, Eq)]
 pub enum LeftClickEditMode {
     MoveSun,
-    //MoveLocalLights,
+    
 }

@@ -5,7 +5,6 @@ use log::{info, debug, error};
 use std::sync::Arc;
 use parking_lot::RwLock;
 
-/// Estado de inicialización del streaming
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamingInitState {
     NotInitialized,
@@ -14,7 +13,6 @@ pub enum StreamingInitState {
     Failed(String),
 }
 
-/// Integración del sistema de streaming de recursos con Darkmoon Engine
 pub struct StreamingIntegration {
     manager: Option<ResourceStreamingManager>,
     enabled: bool,
@@ -31,8 +29,7 @@ impl StreamingIntegration {
             init_requested: false,
         }
     }
-    
-    /// Inicializa el sistema de streaming
+
     pub async fn initialize(&mut self, persisted: &PersistedState) -> Result<()> {
         if self.enabled {
             info!("Sistema de streaming ya inicializado");
@@ -64,15 +61,13 @@ impl StreamingIntegration {
             }
         }
     }
-    
-    /// Actualiza el sistema de streaming en cada frame
+
     pub fn update(&self, camera_position: &[f32; 3], camera_direction: &[f32; 3]) {
         if let Some(ref manager) = self.manager {
             manager.update(camera_position, camera_direction);
         }
     }
-    
-    /// Solicita la carga de un recurso
+
     pub fn request_resource(&self, path: &str, priority: LoadPriority) -> Option<u64> {
         if let Some(ref manager) = self.manager {
             Some(manager.request_resource(path, priority))
@@ -81,8 +76,7 @@ impl StreamingIntegration {
             None
         }
     }
-    
-    /// Obtiene el estado de un recurso
+
     pub fn get_resource_state(&self, handle: u64) -> Option<kajiya_streaming::resource_manager::ResourceState> {
         if let Some(ref manager) = self.manager {
             manager.get_resource_state(handle)
@@ -90,8 +84,7 @@ impl StreamingIntegration {
             None
         }
     }
-    
-    /// Obtiene estadísticas del sistema de streaming
+
     pub fn get_stats(&self) -> Option<kajiya_streaming::resource_manager::StreamingStats> {
         if let Some(ref manager) = self.manager {
             Some(manager.get_stats())
@@ -99,20 +92,17 @@ impl StreamingIntegration {
             None
         }
     }
-    
-    /// Limpia recursos no utilizados
+
     pub fn cleanup_unused_resources(&self) {
         if let Some(ref manager) = self.manager {
             manager.cleanup_unused_resources();
         }
     }
-    
-    /// Verifica si el sistema de streaming está habilitado
+
     pub fn is_enabled(&self) -> bool {
         self.enabled && self.manager.is_some()
     }
-    
-    /// Renderiza la GUI del sistema de streaming
+
     pub fn render_gui(&mut self, ui: &imgui::Ui) {
         let mut initialize_clicked = false;
         
@@ -122,7 +112,7 @@ impl StreamingIntegration {
             imgui::Window::new(imgui::im_str!("Resource Streaming"))
                 .size([400.0, 300.0], imgui::Condition::FirstUseEver)
                 .build(ui, || {
-                    // Estado general
+                    
                     ui.separator();
                     ui.text("Estado del Sistema");
                     ui.separator();
@@ -132,8 +122,7 @@ impl StreamingIntegration {
                     ui.text(format!("Recursos cargados: {}", stats.loaded_resources));
                     ui.text(format!("Recursos cargando: {}", stats.loading_resources));
                     ui.text(format!("Recursos fallidos: {}", stats.failed_resources));
-                    
-                    // Estadísticas de memoria
+
                     ui.separator();
                     ui.text("Uso de Memoria");
                     ui.separator();
@@ -148,8 +137,7 @@ impl StreamingIntegration {
                         .size([300.0, 20.0])
                         .overlay_text(&imgui::im_str!("{:.1}%", memory_pct))
                         .build(ui);
-                    
-                    // Estadísticas de cache
+
                     ui.separator();
                     ui.text("Estadísticas de Cache");
                     ui.separator();
@@ -160,8 +148,7 @@ impl StreamingIntegration {
                         .size([300.0, 20.0])
                         .overlay_text(&imgui::im_str!("{:.1}%", stats.cache_hit_rate * 100.0))
                         .build(ui);
-                    
-                    // Controles
+
                     ui.separator();
                     ui.text("Controles");
                     ui.separator();
@@ -199,7 +186,7 @@ impl StreamingIntegration {
                             ui.text("Inicializando sistema de streaming...");
                             ui.spacing();
                             
-                            imgui::ProgressBar::new(-1.0) // Progreso indeterminado
+                            imgui::ProgressBar::new(-1.0) 
                                 .size([200.0, 20.0])
                                 .overlay_text(&imgui::im_str!("Inicializando..."))
                                 .build(ui);
@@ -222,15 +209,13 @@ impl StreamingIntegration {
                     }
                 });
         }
-        
-        // Manejar el click del botón fuera de la closure
+
         if initialize_clicked {
             info!("Solicitando inicialización de streaming desde GUI");
             self.request_initialization();
         }
     }
 
-    /// Solicita la inicialización del streaming (llamado desde GUI)
     pub fn request_initialization(&mut self) {
         if self.init_state == StreamingInitState::NotInitialized {
             self.init_requested = true;
@@ -238,8 +223,7 @@ impl StreamingIntegration {
             info!("Inicialización de streaming solicitada desde GUI");
         }
     }
-    
-    /// Verifica si hay una solicitud de inicialización pendiente y la procesa
+
     pub async fn process_pending_initialization(&mut self) -> Result<()> {
         if self.init_requested && self.init_state == StreamingInitState::Initializing {
             self.init_requested = false;
@@ -258,8 +242,7 @@ impl StreamingIntegration {
         }
         Ok(())
     }
-    
-    /// Inicialización interna del sistema de streaming
+
     async fn initialize_internal(&mut self) -> Result<()> {
         if self.enabled {
             info!("Sistema de streaming ya inicializado");
@@ -292,16 +275,13 @@ impl StreamingIntegration {
         }
     }
 
-    // Métodos privados para configuración
-    
     fn calculate_cache_size(&self) -> u64 {
-        // Calcular tamaño de cache basándose en la memoria disponible del sistema
-        // Por ahora, usar un valor fijo de 2GB
+
         2 * 1024 * 1024 * 1024
     }
     
     fn calculate_worker_threads(&self) -> usize {
-        // Usar la mitad de los cores disponibles para streaming
+        
         (num_cpus::get() / 2).max(2).min(8)
     }
 }
@@ -312,7 +292,6 @@ impl Default for StreamingIntegration {
     }
 }
 
-/// Extensiones para el estado persistido para incluir configuración de streaming
 pub trait PersistedStateStreamingExt {
     fn get_streaming_enabled(&self) -> bool;
     fn set_streaming_enabled(&mut self, enabled: bool);
@@ -322,21 +301,20 @@ pub trait PersistedStateStreamingExt {
     fn set_streaming_worker_threads(&mut self, threads: u8);
 }
 
-// Implementación por defecto para PersistedState
 #[allow(unused)]
 impl PersistedStateStreamingExt for PersistedState {
     fn get_streaming_enabled(&self) -> bool {
-        // Por defecto habilitado
+        
         true
     }
     
     fn set_streaming_enabled(&mut self, enabled: bool) {
-        // Implementar cuando se añadan campos al PersistedState
+        
         debug!("Configurando streaming enabled: {}", enabled);
     }
     
     fn get_streaming_cache_size_mb(&self) -> u32 {
-        // Por defecto 2GB
+        
         2048
     }
     
@@ -345,7 +323,7 @@ impl PersistedStateStreamingExt for PersistedState {
     }
     
     fn get_streaming_worker_threads(&self) -> u8 {
-        // Por defecto 4 threads
+        
         4
     }
     

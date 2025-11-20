@@ -26,10 +26,8 @@ use super::wrc::WrcRenderState;
 const MAX_GRID_CELLS: usize =
     IRCACHE_CASCADE_SIZE * IRCACHE_CASCADE_SIZE * IRCACHE_CASCADE_SIZE * IRCACHE_CASCADE_COUNT;
 
-// Ref: 2af64eb1-745a-4778-8c80-04af6e2225e0
 const MAX_ENTRIES: usize = 1024 * 64;
 
-// Must match GPU side
 const IRCACHE_GRID_CELL_DIAMETER: f32 = 0.16 * 0.125;
 const IRCACHE_CASCADE_SIZE: usize = 32;
 const IRCACHE_SAMPLES_PER_FRAME: usize = 4;
@@ -105,7 +103,7 @@ impl IrcacheRenderer {
             device,
             RenderPassDesc {
                 color_attachments: &[
-                    // view-space geometry normal; * 2 - 1 to decode
+                    
                     RenderPassAttachmentDesc::new(vk::Format::R32G32B32A32_SFLOAT),
                 ],
                 depth_attachment: Some(RenderPassAttachmentDesc::new(vk::Format::D32_SFLOAT)),
@@ -146,10 +144,6 @@ impl IrcacheRenderer {
             let prev_scroll = self.prev_scroll[cascade];
             let scroll_amount = cur_scroll - prev_scroll;
 
-            /*if scroll_amount.ne(&IVec3::ZERO) {
-                log::info!("cascade {cascade} scrolled by {scroll_amount:?}");
-            }*/
-
             IrcacheCascadeConstants {
                 origin: cur_scroll.extend(0),
                 voxels_scrolled_this_frame: scroll_amount.extend(0),
@@ -164,14 +158,13 @@ impl IrcacheRenderer {
 
 impl IrcacheRenderer {
     #[allow(clippy::assertions_on_constants)]
-    #[allow(clippy::manual_bits)] // multiplying by 8 is not always for bits, Clippy
+    #[allow(clippy::manual_bits)] 
     pub fn prepare(&mut self, rg: &mut rg::TemporalRenderGraph) -> IrcacheRenderState {
         const INDIRECTION_BUF_ELEM_COUNT: usize = 1024 * 1024;
         assert!(INDIRECTION_BUF_ELEM_COUNT >= MAX_ENTRIES);
 
         let mut state = IrcacheRenderState {
-            // 0: hash grid cell count
-            // 1: entry count
+
             ircache_meta_buf: temporal_storage_buffer(rg, "ircache.meta_buf", size_of::<u32>() * 8),
             ircache_grid_meta_buf: temporal_storage_buffer(
                 rg,
@@ -274,28 +267,6 @@ impl IrcacheRenderer {
             self.parity = (self.parity + 1) % 2;
         }
 
-        /*SimpleRenderPass::new_compute(
-            rg.add_pass("debug ircache"),
-            "/shaders/ircache/ircache_draw_debug.hlsl",
-        )
-        .read(&gbuffer_depth.gbuffer)
-        .read_aspect(&gbuffer_depth.depth, vk::ImageAspectFlags::DEPTH)
-        .read(&gbuffer_depth.geometric_normal)
-        .write(&mut state.ircache_meta_buf)
-        .write(&mut state.ircache_grid_meta_buf)
-        .write(&mut state.ircache_entry_cell_buf)
-        .read(&state.ircache_spatial_buf)
-        .read(&state.ircache_irradiance_buf)
-        .write(&mut state.debug_out)
-        .write(&mut state.ircache_pool_buf)
-        .write(&mut state.ircache_life_buf)
-        .write(&mut state.ircache_reposition_proposal_buf)
-        .write(&mut state.ircache_reposition_proposal_count_buf)
-        .constants(gbuffer_desc.extent_inv_extent_2d())
-        .dispatch(gbuffer_desc.extent);
-
-        state.draw_trace_origins(rg, self.debug_render_pass.clone(), gbuffer_depth);*/
-
         let indirect_args_buf = {
             let mut indirect_args_buf = rg.create(BufferDesc::new_gpu_only(
                 (size_of::<u32>() * 4) * 2,
@@ -397,7 +368,7 @@ impl IrcacheRenderState {
             rg.add_pass("ircache trace access"),
             ShaderSource::hlsl("/shaders/ircache/trace_accessibility.rgen.hlsl"),
             [
-                // Duplicated because `rt.hlsl` hardcodes miss index to 1
+                
                 ShaderSource::hlsl("/shaders/rt/shadow.rmiss.hlsl"),
                 ShaderSource::hlsl("/shaders/rt/shadow.rmiss.hlsl"),
             ],
@@ -406,8 +377,7 @@ impl IrcacheRenderState {
         .read(&self.ircache_spatial_buf)
         .read(&self.ircache_life_buf)
         .write_no_sync(&mut self.ircache_reposition_proposal_buf)
-        // Only read-access necessary, but if we use `write_no_sync`, we can overlap
-        // with the next pass. The next pass does not modify any data that this one reads.
+
         .write_no_sync(&mut self.ircache_meta_buf)
         .write_no_sync(&mut self.ircache_aux_buf)
         .read(&self.ircache_entry_indirection_buf)
@@ -443,8 +413,6 @@ impl IrcacheRenderState {
                 1,
             ],
         );
-        // TODO: seems rather broken on AMD
-        //.trace_rays_indirect(tlas, &indirect_args_buf, 16 * 3);
 
         SimpleRenderPass::new_rt(
             rg.add_pass("ircache trace"),
@@ -472,18 +440,12 @@ impl IrcacheRenderState {
             tlas,
             [(MAX_ENTRIES * IRCACHE_SAMPLES_PER_FRAME) as u32, 1, 1],
         );
-        // TODO: seems rather broken on AMD
-        //.trace_rays_indirect(tlas, &indirect_args_buf, 16 * 0);
 
         self.pending_irradiance_sum = true;
 
         IrcacheIrradiancePendingSummation { indirect_args_buf }
     }
 
-    // Split from the RT passes, so that we don't immediately try to access the ray-traced data,
-    // draining the GPU waves in the process.
-    // TODO: doing this is a bit sketchy. Ideally the render graph would be flexible enough
-    // to automatically allow re-scheduling of passes to hide latency.
     pub fn sum_up_irradiance_for_sampling(
         &mut self,
         rg: &mut rg::RenderGraph,
@@ -505,99 +467,4 @@ impl IrcacheRenderState {
         self.pending_irradiance_sum = false;
     }
 
-    /*fn draw_trace_origins(
-        &mut self,
-        rg: &mut rg::RenderGraph,
-        render_pass: Arc<RenderPass>,
-        gbuffer_depth: &mut GbufferDepth,
-    ) {
-        let mut pass = rg.add_pass("raster ircache origins");
-
-        let pipeline = pass.register_raster_pipeline(
-            &[
-                PipelineShaderDesc::builder(ShaderPipelineStage::Vertex)
-                    .hlsl_source("/shaders/ircache/raster_origins_vs.hlsl")
-                    .build()
-                    .unwrap(),
-                PipelineShaderDesc::builder(ShaderPipelineStage::Pixel)
-                    .hlsl_source("/shaders/ircache/raster_origins_ps.hlsl")
-                    .build()
-                    .unwrap(),
-            ],
-            RasterPipelineDesc::builder()
-                .render_pass(render_pass.clone())
-                .face_cull(true)
-                .depth_write(false),
-        );
-
-        let depth_ref = pass.raster(
-            &mut gbuffer_depth.depth,
-            AccessType::DepthAttachmentWriteStencilReadOnly,
-        );
-        let color_ref = pass.raster(&mut self.debug_out, AccessType::ColorAttachmentWrite);
-
-        let ircache_meta_buf_ref = pass.read(
-            &self.ircache_meta_buf,
-            AccessType::AnyShaderReadSampledImageOrUniformTexelBuffer,
-        );
-        let ircache_grid_meta_buf_ref = pass.read(
-            &self.ircache_grid_meta_buf,
-            AccessType::AnyShaderReadSampledImageOrUniformTexelBuffer,
-        );
-        let ircache_life_buf_ref = pass.read(
-            &self.ircache_life_buf,
-            AccessType::AnyShaderReadSampledImageOrUniformTexelBuffer,
-        );
-        let ircache_spatial_buf_ref = pass.read(
-            &self.ircache_spatial_buf,
-            AccessType::AnyShaderReadSampledImageOrUniformTexelBuffer,
-        );
-
-        pass.render(move |api| {
-            let [width, height, _] = color_ref.desc().extent;
-
-            api.begin_render_pass(
-                &*render_pass,
-                [width, height],
-                &[(color_ref, &ImageViewDesc::default())],
-                Some((
-                    depth_ref,
-                    &ImageViewDesc::builder()
-                        .aspect_mask(vk::ImageAspectFlags::DEPTH)
-                        .build()
-                        .unwrap(),
-                )),
-            );
-
-            api.set_default_view_and_scissor([width, height]);
-
-            //let constants_offset = api.dynamic_constants().push(&(cascade_idx as u32));
-            let _ = api.bind_raster_pipeline(pipeline.into_binding().descriptor_set(
-                0,
-                &[
-                    ircache_meta_buf_ref.bind(),
-                    ircache_grid_meta_buf_ref.bind(),
-                    ircache_life_buf_ref.bind(),
-                    ircache_spatial_buf_ref.bind(),
-                    //rg::RenderPassBinding::DynamicConstants(constants_offset),
-                ],
-            ));
-
-            unsafe {
-                let raw_device = &api.device().raw;
-                let cb = api.cb;
-
-                raw_device.cmd_draw(
-                    cb.raw,
-                    // 6 verts (two triangles) per cube face
-                    6 * 6 * MAX_ENTRIES as u32,
-                    1,
-                    0,
-                    0,
-                );
-            }
-
-            api.end_render_pass();
-        });
-    }*/
 }

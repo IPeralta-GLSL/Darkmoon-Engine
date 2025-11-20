@@ -1,6 +1,4 @@
-// not used
 
-// Derived from atmosphere_felix.hlsl.
 
 use core::f32::consts::PI;
 use macaw::{const_vec3, Vec2, Vec3};
@@ -21,12 +19,6 @@ const C_OZONE: Vec3 = const_vec3!([0.650 * 1e-6, 1.881 * 1e-6, 0.085 * 1e-6]);
 const ATMOSPHERE_DENSITY: f32 = 1.0;
 const EXPOSURE: f32 = 20.0;
 
-/// Optical depth is a unitless measurement of the amount of absorption of a participating medium (such as the atmosphere).
-/// This function calculates just that for our three atmospheric elements:
-/// R: Rayleigh
-/// G: Mie
-/// B: Ozone
-/// If you find the term "optical depth" confusing, you can think of it as "how much density was found along the ray in total".
 pub fn integrate_optical_depth(ray_o: Vec3, ray_d: Vec3) -> Vec3 {
     let intersection = atmosphere_intersection(ray_o, ray_d);
     let ray_length = intersection.y;
@@ -37,8 +29,7 @@ pub fn integrate_optical_depth(ray_o: Vec3, ray_d: Vec3) -> Vec3 {
     let mut optical_depth = Vec3::ZERO;
 
     let mut i = 0;
-    // Using a while loop here as a workaround for a spirv-cross bug.
-    // See https://github.com/EmbarkStudios/rust-gpu/issues/739
+
     while i < sample_count {
         let local_pos = ray_o + ray_d * (i as f32 + 0.5) * step_size;
         let local_height = atmosphere_height(local_pos);
@@ -65,7 +56,7 @@ fn density_mie(h: f32) -> f32 {
 }
 
 fn density_ozone(h: f32) -> f32 {
-    // The ozone layer is represented as a tent function with a width of 30km, centered around an altitude of 25km.
+    
     0.0f32.max(1.0 - (h - 25000.0).abs() / 15000.0)
 }
 
@@ -96,30 +87,25 @@ pub fn atmosphere_intersection(ray_o: Vec3, ray_d: Vec3) -> Vec2 {
     )
 }
 
-// -------------------------------------
-// Phase functions
 fn phase_rayleigh(costh: f32) -> f32 {
     3.0 * (1.0 + costh * costh) / (16.0 * PI)
 }
 
 fn phase_mie(costh: f32, mut g: f32) -> f32 {
-    // g = 0.85)
+    
     g = g.min(0.9381);
     let k = 1.55 * g - 0.55 * g * g * g;
     let kcosth = k * costh;
     (1.0 - k * k) / ((4.0 * PI) * (1.0 - kcosth) * (1.0 - kcosth))
 }
 
-/// Calculate a luminance transmittance value from optical depth.
 pub fn absorb(optical_depth: Vec3) -> Vec3 {
-    // Note that Mie results in slightly more light absorption than scattering, about 10%
+    
     (-(optical_depth.x * C_RAYLEIGH + optical_depth.y * C_MIE * 1.1 + optical_depth.z * C_OZONE)
         * ATMOSPHERE_DENSITY)
         .exp()
 }
 
-// Integrate scattering over a ray for a single directional light source.
-// Also return the transmittance for the same ray as we are already calculating the optical depth anyway.
 pub fn integrate_scattering(
     mut ray_start: Vec3,
     ray_dir: Vec3,
@@ -128,18 +114,14 @@ pub fn integrate_scattering(
     light_color: Vec3,
     transmittance: &mut Vec3,
 ) -> Vec3 {
-    // We can reduce the number of atmospheric samples required to converge by spacing them exponentially closer to the camera.
-    // This breaks space view however, so let's compensate for that with an exponent that "fades" to 1 as we leave the atmosphere.
-    // let ray_height = atmosphere_height(ray_start);
-    //float  sample_distribution_exponent = 1 + saturate(1 - ray_height / ATMOSPHERE_HEIGHT) * 8; // Slightly arbitrary max exponent of 9
-    //float  sample_distribution_exponent = 1 + 8 * abs(ray_dir.y);
+
     let sample_distribution_exponent: f32 = 5.0;
 
     let intersection: Vec2 = atmosphere_intersection(ray_start, ray_dir);
 
     ray_length = ray_length.min(intersection.y);
     if intersection.x > 0.0 {
-        // Advance ray to the atmosphere entry point
+        
         ray_start += ray_dir * intersection.x;
         ray_length -= intersection.x;
     }
@@ -159,10 +141,9 @@ pub fn integrate_scattering(
     for i in 1..=sample_count {
         let ray_time: f32 =
             (i as f32 / sample_count as f32).powf(sample_distribution_exponent) * ray_length;
-        // Because we are distributing the samples exponentially, we have to calculate the step size per sample.
+        
         let step_size = ray_time - prev_ray_time;
 
-        //float3 local_position = ray_start + ray_dir * ray_time;
         let local_position: Vec3 =
             ray_start + ray_dir * macaw::FloatExt::lerp(prev_ray_time, ray_time, 0.5);
         let local_height: f32 = atmosphere_height(local_position);
@@ -170,12 +151,10 @@ pub fn integrate_scattering(
 
         optical_depth += local_density * step_size;
 
-        // The atmospheric transmittance from ray_start to local_position
         let view_transmittance: Vec3 = absorb(optical_depth);
 
         let optical_depthlight: Vec3 = integrate_optical_depth(local_position, light_dir);
 
-        // The atmospheric transmittance of light reaching local_position
         let light_transmittance: Vec3 = absorb(optical_depthlight);
 
         rayleigh +=

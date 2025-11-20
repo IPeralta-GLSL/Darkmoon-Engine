@@ -11,8 +11,7 @@ fn test_translucent_shader_compilation() {
     
     let lazy_cache = Arc::new(LazyCache::new());
     let mut pipeline_cache = PipelineCache::new(&lazy_cache);
-    
-    
+
     let shader_descs = vec![
         PipelineShaderDesc::builder(ShaderPipelineStage::Vertex)
             .hlsl_source("/shaders/translucent_vs.hlsl")
@@ -23,7 +22,6 @@ fn test_translucent_shader_compilation() {
             .build()
             .unwrap(),
     ];
-    
 
     println!("Attempting to register translucent pipeline...");
     

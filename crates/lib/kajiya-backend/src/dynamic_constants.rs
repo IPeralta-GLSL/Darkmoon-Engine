@@ -8,16 +8,10 @@ use vulkan::buffer::Buffer;
 pub const DYNAMIC_CONSTANTS_SIZE_BYTES: usize = 1024 * 1024 * 16;
 pub const DYNAMIC_CONSTANTS_BUFFER_COUNT: usize = 2;
 
-// Generally supported minimum uniform buffer size across vendors (maxUniformBufferRange)
-// Could be bumped to 65536 if needed.
 pub const MAX_DYNAMIC_CONSTANTS_BYTES_PER_DISPATCH: usize = 16384;
 
-// TODO: Must be >= `minUniformBufferOffsetAlignment`. In practice <= 256.
 pub const DYNAMIC_CONSTANTS_ALIGNMENT: usize = 256;
 
-// Sadly we can't have unsized dynamic storage buffers sub-allocated from dynamic constants because WHOLE_SIZE blows up.
-// https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/2846#issuecomment-851744837
-// For now, just a max size.
 pub const MAX_DYNAMIC_CONSTANTS_STORAGE_BUFFER_BYTES: usize = 1024 * 1024;
 
 pub struct DynamicConstants {

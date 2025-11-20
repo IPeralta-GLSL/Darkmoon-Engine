@@ -40,10 +40,8 @@ impl ImageLut {
         self.computed = true;
     }
 
-    /// Note: contains garbage until `compute_if_needed` is called.
     pub fn backing_image(&self) -> Arc<Image> {
         self.image.clone()
     }
 }
 
-//pub fn clear_depth(rg: &mut RenderGraph, img: &mut Handle<Image>) {

@@ -31,7 +31,6 @@ impl KeymapConfig {
             .read_to_string(&mut buffer)
             .with_context(|| "Failed to read keymap.toml")?;
 
-        // Don't use anyhow context here because it doesn't show the parsing error.
         let keymap = from_str(&buffer)
             .map_err(|e| anyhow!("Failed to parse keymap.toml: {}", e.to_string()))?;
 

@@ -46,7 +46,6 @@ impl TaaRenderer {
         depth_tex: &rg::Handle<Image>,
         output_extent: [u32; 2],
     ) -> TaaOutput {
-        //let input_extent = input_tex.desc().extent_2d();
 
         let (mut temporal_output_tex, history_tex) = self
             .temporal_tex

@@ -47,7 +47,7 @@ pub struct CameraLens {
 impl Default for CameraLens {
     fn default() -> Self {
         Self {
-            near_plane_distance: 0.01, // 1mm
+            near_plane_distance: 0.01, 
             aspect_ratio: 1.0,
             vertical_fov: 52.0,
         }
@@ -92,12 +92,6 @@ impl CameraLens {
         let h = (0.5 * fov).cos() / (0.5 * fov).sin();
         let w = h / self.aspect_ratio;
 
-        /*let mut m = Mat4::ZERO;
-        m.m11 = w;
-        m.m22 = h;
-        m.m34 = znear;
-        m.m43 = -1.0;
-        m*/
         let view_to_clip = Mat4::from_cols(
             Vec4::new(w, 0.0, 0.0, 0.0),
             Vec4::new(0.0, h, 0.0, 0.0),
@@ -105,12 +99,6 @@ impl CameraLens {
             Vec4::new(0.0, 0.0, znear, 0.0),
         );
 
-        /*let mut m = Mat4::ZERO;
-        m.m11 = 1.0 / w;
-        m.m22 = 1.0 / h;
-        m.m34 = -1.0;
-        m.m43 = 1.0 / znear;
-        m*/
         let clip_to_view = Mat4::from_cols(
             Vec4::new(1.0 / w, 0.0, 0.0, 0.0),
             Vec4::new(0.0, 1.0 / h, 0.0, 0.0),

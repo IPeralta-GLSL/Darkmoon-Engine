@@ -162,7 +162,7 @@ impl RtrRenderer {
             self.temporal_ray_orig_tex.get_output_and_history(
                 rg,
                 ImageDesc::new_2d(
-                    // TODO: This can _almost_ fit in fp16, but some edge darkening ensues.
+                    
                     vk::Format::R32G32B32A32_SFLOAT,
                     gbuffer_desc.half_res().extent_2d(),
                 )
@@ -229,7 +229,6 @@ impl RtrRenderer {
             .constants((gbuffer_desc.extent_inv_extent_2d(),))
             .raw_descriptor_set(1, bindless_descriptor_set)
             .trace_rays(tlas, refl0_tex.desc().half_res().extent);
-            //.trace_rays(tlas, refl0_tex.desc().extent);
 
             SimpleRenderPass::new_compute(
                 rg.add_pass("rtr restir temporal"),
@@ -248,14 +247,14 @@ impl RtrRenderer {
             .read(&reservoir_history_tex)
             .read(reprojection_map)
             .read(&hit_normal_history_tex)
-            //.read(&candidate_history_tex)
+            
             .write(&mut irradiance_output_tex)
             .write(&mut ray_orig_output_tex)
             .write(&mut ray_output_tex)
             .write(&mut rng_output_tex)
             .write(&mut hit_normal_output_tex)
             .write(&mut reservoir_output_tex)
-            //.write(&mut candidate_output_tex)
+            
             .constants((gbuffer_desc.extent_inv_extent_2d(),))
             .raw_descriptor_set(1, bindless_descriptor_set)
             .dispatch(irradiance_output_tex.desc().extent);
@@ -391,7 +390,7 @@ impl TracedRtr {
         .read(&self.temporal_output_tex)
         .read_aspect(&gbuffer_depth.depth, vk::ImageAspectFlags::DEPTH)
         .read(&gbuffer_depth.geometric_normal)
-        .write(&mut self.resolved_tex) // reuse
+        .write(&mut self.resolved_tex) 
         .constants(SPATIAL_RESOLVE_OFFSETS)
         .dispatch(self.resolved_tex.desc().extent);
 

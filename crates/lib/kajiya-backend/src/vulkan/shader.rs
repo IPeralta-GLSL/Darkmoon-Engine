@@ -65,9 +65,7 @@ pub fn create_descriptor_set_layouts(
     Vec<vk::DescriptorSetLayout>,
     Vec<HashMap<u32, vk::DescriptorType>>,
 ) {
-    // dbg!(&descriptor_sets);
 
-    // Make a vector of Option<ref> to the original entries
     let mut set_opts = set_opts
         .iter()
         .map(|item| item.as_ref())
@@ -75,14 +73,12 @@ pub fn create_descriptor_set_layouts(
 
     let samplers = TempList::new();
 
-    // Find the number of sets in `descriptor_sets`
     let set_count = descriptor_sets
         .iter()
         .map(|(set_index, _)| *set_index + 1)
         .max()
         .unwrap_or(0u32);
 
-    // Max that with the highest set in `set_opts`
     let set_count = set_count.max(
         set_opts
             .iter()
@@ -100,14 +96,12 @@ pub fn create_descriptor_set_layouts(
         let stage_flags = if 0 == set_index {
             stage_flags
         } else {
-            // Set 0 is for draw params,
-            // Further sets are for pass/frame bindings, and use all stage flags
-            // TODO: pass those as a parameter here?
+
             vk::ShaderStageFlags::ALL
         };
 
         let _set_opts_default = Default::default();
-        // Find the descriptor set opts corresponding to the set index, and remove them from the opts list
+        
         let set_opts = {
             let mut resolved_set_opts: &DescriptorSetLayoutOpts = &_set_opts_default;
 
@@ -121,7 +115,6 @@ pub fn create_descriptor_set_layouts(
             resolved_set_opts
         };
 
-        // Use the specified override, or the layout parsed from the shader if no override was provided
         let set = set_opts
             .replace
             .as_ref()
@@ -143,8 +136,8 @@ pub fn create_descriptor_set_layouts(
                     | rspirv_reflect::DescriptorType::STORAGE_BUFFER_DYNAMIC => bindings.push(
                         vk::DescriptorSetLayoutBinding::builder()
                             .binding(*binding_index)
-                            //.descriptor_count(binding.count)
-                            .descriptor_count(1) // TODO
+                            
+                            .descriptor_count(1) 
                             .descriptor_type(match binding.ty {
                                 rspirv_reflect::DescriptorType::UNIFORM_BUFFER => {
                                     vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC
@@ -175,7 +168,6 @@ pub fn create_descriptor_set_layouts(
                             binding.dimensionality,
                             rspirv_reflect::DescriptorDimensionality::RuntimeArray
                         ) {
-                            // Bindless
 
                             binding_flags[bindings.len()] =
                                 vk::DescriptorBindingFlags::UPDATE_AFTER_BIND
@@ -198,7 +190,7 @@ pub fn create_descriptor_set_layouts(
                         bindings.push(
                             vk::DescriptorSetLayoutBinding::builder()
                                 .binding(*binding_index)
-                                .descriptor_count(descriptor_count) // TODO
+                                .descriptor_count(descriptor_count) 
                                 .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
                                 .stage_flags(stage_flags)
                                 .build(),
@@ -251,7 +243,7 @@ pub fn create_descriptor_set_layouts(
                     rspirv_reflect::DescriptorType::ACCELERATION_STRUCTURE_KHR => bindings.push(
                         vk::DescriptorSetLayoutBinding::builder()
                             .binding(*binding_index)
-                            .descriptor_count(1) // TODO
+                            .descriptor_count(1) 
                             .descriptor_type(vk::DescriptorType::ACCELERATION_STRUCTURE_KHR)
                             .stage_flags(stage_flags)
                             .build(),
@@ -399,8 +391,6 @@ pub fn create_compute_pipeline(
         &desc.descriptor_set_opts,
     );
 
-    // dbg!(&set_layout_info);
-
     let mut layout_create_info =
         vk::PipelineLayoutCreateInfo::builder().set_layouts(&descriptor_set_layouts);
 
@@ -441,7 +431,7 @@ pub fn create_compute_pipeline(
 
         let pipeline = device
             .raw
-            // TODO: pipeline cache
+            
             .create_compute_pipelines(vk::PipelineCache::null(), &[pipeline_info.build()], None)
             .expect("pipeline")[0];
 
@@ -535,15 +525,6 @@ impl RasterPipelineDesc {
     }
 }
 
-/*pub struct RasterPipeline {
-    pub pipeline_layout: vk::PipelineLayout,
-    pub pipeline: vk::Pipeline,
-    pub set_layout_info: Vec<HashMap<u32, vk::DescriptorType>>,
-    pub descriptor_pool_sizes: Vec<vk::DescriptorPoolSize>,
-    pub descriptor_set_layouts: Vec<vk::DescriptorSetLayout>,
-    //pub render_pass: Arc<RenderPass>,
-}*/
-
 #[derive(Clone, Copy)]
 pub struct RenderPassAttachmentDesc {
     pub format: vk::Format,
@@ -622,7 +603,6 @@ impl FramebufferCacheKey {
     }
 }
 
-// TODO: nuke when resizing
 pub struct FramebufferCache {
     entries: Mutex<HashMap<FramebufferCacheKey, vk::Framebuffer>>,
     attachment_desc: ArrayVec<[RenderPassAttachmentDesc; MAX_COLOR_ATTACHMENTS + 1]>,
@@ -746,20 +726,6 @@ pub fn create_render_pass(device: &Device, desc: RenderPassDesc<'_>) -> Arc<Rend
         layout: vk::ImageLayout::DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL,
     };
 
-    // TODO: Calculate optimal dependencies. using implicit dependencies for now.
-    /*let dependencies = [vk::SubpassDependency {
-        src_subpass: vk::SUBPASS_EXTERNAL,
-        src_stage_mask: vk::PipelineStageFlags::EARLY_FRAGMENT_TESTS
-            | vk::PipelineStageFlags::LATE_FRAGMENT_TESTS
-            | vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-        dst_access_mask: vk::AccessFlags::COLOR_ATTACHMENT_READ
-            | vk::AccessFlags::COLOR_ATTACHMENT_WRITE
-            | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ
-            | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
-        dst_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-        ..Default::default()
-    }];*/
-
     let mut subpass_description = vk::SubpassDescription::builder()
         .color_attachments(&color_attachment_refs)
         .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS);
@@ -808,7 +774,6 @@ where
         }
     }
 }
-//impl<ShaderCode> Hash for RasterPipelineShader<ShaderCode> {}
 
 impl<ShaderCode> PipelineShader<ShaderCode> {
     pub fn new(code: ShaderCode, desc: PipelineShaderDescBuilder) -> Self {
@@ -838,7 +803,7 @@ pub fn create_raster_pipeline(
         device,
         &merge_shader_stage_layouts(stage_layouts),
         vk::ShaderStageFlags::ALL_GRAPHICS,
-        //desc.descriptor_set_layout_flags.unwrap_or(&[]),  // TODO: merge flags
+        
         &desc.descriptor_set_opts,
     );
 
@@ -998,7 +963,7 @@ pub fn create_raster_pipeline(
             common: ShaderPipelineCommon {
                 pipeline_layout,
                 pipeline,
-                //render_pass: desc.render_pass.clone(),
+                
                 set_layout_info,
                 descriptor_pool_sizes,
                 descriptor_set_layouts,

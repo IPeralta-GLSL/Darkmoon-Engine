@@ -49,11 +49,11 @@ fn vblur_into_shmem(
     vblur_out[xfetch as usize] = vblur(input_tex, dst_px, src_px);
 }
 
-#[spirv(compute(threads(64, 1, 1)))] // 64 == GROUP_WIDTH
+#[spirv(compute(threads(64, 1, 1)))] 
 pub fn blur_cs(
     #[spirv(descriptor_set = 0, binding = 0)] input_tex: &Image!(2D, type=f32, sampled=true),
     #[spirv(descriptor_set = 0, binding = 1)] output_tex: &Image!(2D, type=f32, sampled=false),
-    #[spirv(workgroup)] vblur_out: &mut [Vec4; VBLUR_WINDOW_SIZE], // groupshared float4 vblur_out[VBLUR_WINDOW_SIZE];
+    #[spirv(workgroup)] vblur_out: &mut [Vec4; VBLUR_WINDOW_SIZE], 
     #[spirv(global_invocation_id)] px: UVec3,
     #[spirv(local_invocation_id)] px_within_group: UVec3,
     #[spirv(workgroup_id)] group_id: UVec3,
@@ -66,7 +66,6 @@ pub fn blur_cs(
         xfetch += GROUP_WIDTH;
     }
 
-    // GroupMemoryBarrierWithGroupSync();
     unsafe {
         control_barrier::<
             { Scope::Workgroup as u32 },

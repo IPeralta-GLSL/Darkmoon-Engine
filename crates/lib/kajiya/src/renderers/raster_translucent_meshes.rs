@@ -42,17 +42,15 @@ pub fn raster_translucent_meshes(
         RasterPipelineDesc::builder()
             .render_pass(render_pass.clone())
             .face_cull(false)
-            .depth_write(false) // Don't write to depth for translucent objects
+            .depth_write(false) 
             .push_constants_bytes(2 * std::mem::size_of::<u32>()),
     );
 
     let meshes: Vec<UploadedTriMesh> = mesh_data.meshes.to_vec();
     let instances: Vec<MeshInstance> = mesh_data.instances.to_vec();
 
-    // Read-only access to depth buffer for depth testing
     let depth_ref = pass.raster_read(&gbuffer_depth.depth, AccessType::DepthStencilAttachmentRead);
-    
-    // Write to color output
+
     let color_ref = pass.raster(color_output, AccessType::ColorAttachmentWrite);
 
     let vertex_buffer = mesh_data.vertex_buffer.clone();
@@ -73,7 +71,6 @@ pub fn raster_translucent_meshes(
 
         api.set_default_view_and_scissor([width, height]);
 
-        // Create instance transforms for dynamic constants
         let instance_transforms_offset = api.dynamic_constants().push_from_iter(
             instances.iter().map(|inst| {
                 let transform = [
@@ -93,7 +90,7 @@ pub fn raster_translucent_meshes(
                     0.0,
                     0.0,
                     0.0,
-                    // Same for prev_transform for now
+                    
                     inst.transform.x_axis.x,
                     inst.transform.y_axis.x,
                     inst.transform.z_axis.x,
@@ -111,7 +108,7 @@ pub fn raster_translucent_meshes(
                     0.0,
                     0.0,
                 ];
-                (transform, [0.0f32; 32]) // Dummy prev_transform
+                (transform, [0.0f32; 32]) 
             })
         );
 
@@ -127,8 +124,6 @@ pub fn raster_translucent_meshes(
                 .raw_descriptor_set(1, bindless_descriptor_set),
         )?;
 
-        // For now, render all instances as potentially translucent
-        // TODO: Filter only truly translucent instances and sort them
         for (instance_idx, instance) in instances.iter().enumerate() {
             let mesh = &meshes[instance.mesh.0];
 

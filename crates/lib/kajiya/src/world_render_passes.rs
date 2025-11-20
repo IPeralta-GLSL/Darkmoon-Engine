@@ -107,19 +107,10 @@ impl WorldRenderer {
             &temporal_accumulation_tex,
             self.bindless_descriptor_set,
         );
-        //let ssgi_tex = rg.create(ImageDesc::new_2d(vk::Format::R8_UNORM, [1, 1]));
 
         let mut ircache_state = self.ircache.prepare(rg);
 
-        let wrc = /*if let Some(tlas) = tlas.as_ref() {
-            crate::renderers::wrc::wrc_trace(
-                rg,
-                &mut ircache_state,
-                &sky_cube,
-                self.bindless_descriptor_set,
-                tlas,
-            )
-        } else */{
+        let wrc = {
             crate::renderers::wrc::allocate_dummy_output(rg)
         };
 
@@ -187,7 +178,6 @@ impl WorldRenderer {
             rtdgi_candidates = None;
         }
 
-        // TODO: don't iter over all the things
         let any_triangle_lights = self
             .instances
             .iter()
@@ -216,7 +206,7 @@ impl WorldRenderer {
 
         if any_triangle_lights {
             if let Some(tlas) = tlas.as_ref() {
-                // Render specular lighting into the RTR image so they can be jointly filtered
+                
                 self.lighting.render_specular(
                     &mut rtr.resolved_tex,
                     rg,
@@ -269,7 +259,7 @@ impl WorldRenderer {
         );
 
                 let translucent_instances: Vec<_> = self.instances.iter().filter(|inst| {
-            // Check if the mesh associated with this instance has translucent materials
+            
             let is_translucent = self.mesh_has_translucent_materials(inst.mesh);
             if is_translucent {
                 log::info!("Found translucent instance with mesh {}", inst.mesh.0);
@@ -281,21 +271,7 @@ impl WorldRenderer {
 
         if !translucent_instances.is_empty() {
             log::info!("Rendering {} translucent instances", translucent_instances.len());
-            // Temporarily disable translucent rendering to test if this is causing the hang
-            /*
-            raster_translucent_meshes(
-                rg,
-                self.translucent_render_pass.clone(),
-                &mut debug_out_tex,
-                &gbuffer_depth,
-                RasterTranslucentMeshesData {
-                    meshes: self.meshes.as_slice(),
-                    instances: &translucent_instances,
-                    vertex_buffer: self.vertex_buffer.lock().clone(),
-                    bindless_descriptor_set: self.bindless_descriptor_set,
-                },
-            );
-            */
+
         }
 
         #[allow(unused_mut)]
@@ -312,13 +288,11 @@ impl WorldRenderer {
             ));
         }
 
-        //let dof = crate::renderers::dof::dof(rg, &debug_out_tex, &gbuffer_depth.depth);
-
         let anti_aliased = anti_aliased.unwrap_or_else(|| {
             self.taa
                 .render(
                     rg,
-                    //&dof,
+                    
                     &debug_out_tex,
                     &reprojection_map,
                     &gbuffer_depth.depth,
@@ -346,7 +320,7 @@ impl WorldRenderer {
         let post_processed = self.post.render(
             rg,
             &final_post_input,
-            //&anti_aliased,
+            
             self.bindless_descriptor_set,
             self.exposure_state().post_mult,
             self.contrast,
@@ -404,7 +378,7 @@ impl WorldRenderer {
         self.post.render(
             rg,
             &accum_img,
-            //&accum_img, // hack
+            
             self.bindless_descriptor_set,
             self.exposure_state().post_mult,
             self.contrast,

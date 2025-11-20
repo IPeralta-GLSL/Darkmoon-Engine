@@ -2,30 +2,26 @@ use std::time::Instant;
 
 fn main() {
     println!("=== Darkmoon Engine - Window Title Format Test ===");
-    
-    // Simular información del dispositivo
-    let device_name = "AMD Radeon RX 7800 XT (NAVI32)"; // Nombre de ejemplo
-    
-    // Simular datos de FPS
+
+    let device_name = "AMD Radeon RX 7800 XT (NAVI32)"; 
+
     let mut last_update = Instant::now();
     let fps_update_interval = std::time::Duration::from_millis(500);
-    
-    // Simular bucle de renderizado con diferentes tiempos de frame
+
     let frame_times = [
-        0.016667, // 60 FPS
-        0.013333, // 75 FPS
-        0.011111, // 90 FPS
-        0.010000, // 100 FPS
-        0.008333, // 120 FPS
-        0.006944, // 144 FPS
+        0.016667, 
+        0.013333, 
+        0.011111, 
+        0.010000, 
+        0.008333, 
+        0.006944, 
     ];
     
     println!("Mostrando formato del título de ventana con diferentes FPS:\n");
     
     for (i, dt_filtered) in frame_times.iter().enumerate() {
         let now = Instant::now();
-        
-        // Simular actualización cada 500ms
+
         if now.duration_since(last_update) >= fps_update_interval {
             let fps = 1.0 / dt_filtered;
             let frame_time_ms = dt_filtered * 1000.0;
@@ -37,8 +33,7 @@ fn main() {
             
             last_update = now;
         }
-        
-        // Simular espera entre frames
+
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
     

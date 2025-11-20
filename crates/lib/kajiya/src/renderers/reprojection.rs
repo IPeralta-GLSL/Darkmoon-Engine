@@ -8,8 +8,7 @@ pub fn calculate_reprojection_map(
     gbuffer_depth: &GbufferDepth,
     velocity_img: &rg::Handle<Image>,
 ) -> rg::Handle<Image> {
-    //let mut output_tex = rg.create(depth.desc().format(vk::Format::R16G16B16A16_SFLOAT));
-    //let mut output_tex = rg.create(depth.desc().format(vk::Format::R32G32B32A32_SFLOAT));
+
     let mut output_tex = rg.create(
         gbuffer_depth
             .depth

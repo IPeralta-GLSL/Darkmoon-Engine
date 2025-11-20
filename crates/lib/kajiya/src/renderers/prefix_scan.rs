@@ -15,7 +15,7 @@ pub fn inclusive_prefix_scan_u32_1m(rg: &mut rg::RenderGraph, input_buf: &mut rg
         "/shaders/prefix_scan/inclusive_prefix_scan.hlsl",
     )
     .write(input_buf)
-    .dispatch([(SEGMENT_SIZE * SEGMENT_SIZE / 2) as u32, 1, 1]); // TODO: indirect
+    .dispatch([(SEGMENT_SIZE * SEGMENT_SIZE / 2) as u32, 1, 1]); 
 
     let mut segment_sum_buf = rg.create(BufferDesc::new_gpu_only(
         size_of::<u32>() * SEGMENT_SIZE,
@@ -27,7 +27,7 @@ pub fn inclusive_prefix_scan_u32_1m(rg: &mut rg::RenderGraph, input_buf: &mut rg
     )
     .read(input_buf)
     .write(&mut segment_sum_buf)
-    .dispatch([(SEGMENT_SIZE / 2) as u32, 1, 1]); // TODO: indirect
+    .dispatch([(SEGMENT_SIZE / 2) as u32, 1, 1]); 
 
     SimpleRenderPass::new_compute(
         rg.add_pass("_prefix scan merge"),
@@ -35,5 +35,5 @@ pub fn inclusive_prefix_scan_u32_1m(rg: &mut rg::RenderGraph, input_buf: &mut rg
     )
     .write(input_buf)
     .read(&segment_sum_buf)
-    .dispatch([(SEGMENT_SIZE * SEGMENT_SIZE / 2) as u32, 1, 1]); // TODO: indirect
+    .dispatch([(SEGMENT_SIZE * SEGMENT_SIZE / 2) as u32, 1, 1]); 
 }

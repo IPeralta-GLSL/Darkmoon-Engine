@@ -44,7 +44,7 @@ impl<T: Copy> BufferDataSource for Vec<T> {
     }
 }
 pub struct BufferBuilder {
-    //buf_slice: &'a mut [u8],
+    
     pending_uploads: Vec<PendingBufferUpload>,
     current_offset: u64,
 }
@@ -99,7 +99,6 @@ impl BufferBuilder {
         );
         let target = target.raw;
 
-        // TODO: share a common staging buffer, don't leak
         const STAGING_BYTES: usize = 16 * 1024 * 1024;
         let mut staging_buffer = device.create_buffer(
             BufferDesc::new_cpu_to_gpu(STAGING_BYTES, vk::BufferUsageFlags::TRANSFER_SRC),
@@ -112,7 +111,6 @@ impl BufferBuilder {
             src_range: Range<usize>,
         }
 
-        // TODO: merge chunks to perform fewer uploads if multiple source regions fit in one chunk
         let chunks: Vec<UploadChunk> = self
             .pending_uploads
             .iter()

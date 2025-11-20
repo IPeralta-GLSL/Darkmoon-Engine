@@ -111,9 +111,6 @@ struct ShaderIncludeProvider {
     ctx: RunContext,
 }
 
-// TODO: Temporarily disable shader compilation due to API changes in shader-prepper
-// This should be fixed to restore full functionality
-/*
 impl shader_prepper::IncludeProvider for ShaderIncludeProvider {
     type IncludeContext = String;
 
@@ -126,61 +123,15 @@ impl shader_prepper::IncludeProvider for ShaderIncludeProvider {
         shader_prepper::BoxedIncludeProviderError,
     > {
         let resolved_path = if let Some('/') = path.chars().next() {
+            
             path.to_owned()
         } else {
+            
             let mut folder: RelativePathBuf = parent_file.into();
-            folder.pop();
+            folder.pop(); 
             folder.join(path).as_str().to_string()
         };
 
-        // Crea un objeto temporal para satisfacer la API
-        use std::path::Path;
-        let temp_path = Path::new(&resolved_path);
-        
-        Ok(shader_prepper::ResolvedInclude {
-            resolved_path: temp_path.into(),
-            context: resolved_path,
-        })
-    }
-
-    fn get_include(
-        &mut self,
-        _resolved_path: &shader_prepper::ResolvedIncludePath,
-    ) -> std::result::Result<
-        String,
-        shader_prepper::BoxedIncludeProviderError,
-    > {
-        // Como no podemos obtener el path del ResolvedIncludePath,
-        // vamos a manejar esto de manera diferente
-        // Por ahora retornamos un string vacío como placeholder
-        Ok(String::new())
-    }
-}
-*/
-
-// Implementación real del sistema de includes
-impl shader_prepper::IncludeProvider for ShaderIncludeProvider {
-    type IncludeContext = String;
-
-    fn resolve_path(
-        &self, 
-        path: &str, 
-        parent_file: &Self::IncludeContext
-    ) -> std::result::Result<
-        shader_prepper::ResolvedInclude<Self::IncludeContext>,
-        shader_prepper::BoxedIncludeProviderError,
-    > {
-        let resolved_path = if let Some('/') = path.chars().next() {
-            // Absolute path
-            path.to_owned()
-        } else {
-            // Relative path - resolve relative to parent file
-            let mut folder: RelativePathBuf = parent_file.into();
-            folder.pop(); // Remove filename, keep directory
-            folder.join(path).as_str().to_string()
-        };
-
-        // Create the resolved include with proper context
         use shader_prepper::ResolvedIncludePath;
         let resolved_include_path = ResolvedIncludePath(resolved_path.clone());
         
@@ -197,19 +148,17 @@ impl shader_prepper::IncludeProvider for ShaderIncludeProvider {
         String,
         shader_prepper::BoxedIncludeProviderError,
     > {
-        // Access the path string from ResolvedIncludePath
-        let path_str = &resolved_path.0;
         
-        // Try to load the file content
+        let path_str = &resolved_path.0;
+
         let file_path = if path_str.starts_with('/') {
-            // Absolute path from assets/shaders
+            
             format!("assets{}", path_str)
         } else {
-            // Relative path
+            
             format!("assets/shaders/{}", path_str)
         };
 
-        // Load the file content
         match std::fs::read_to_string(&file_path) {
             Ok(content) => Ok(content),
             Err(err) => {
@@ -227,7 +176,7 @@ pub fn get_cs_local_size_from_spirv(spirv: &[u32]) -> Result<[u32; 3]> {
     let module = loader.module();
 
     for inst in module.global_inst_iter() {
-        //if spirv_headers::Op::ExecutionMode == inst.class.opcode {
+        
         if inst.class.opcode as u32 == 16 {
             let local_size = &inst.operands[2..5];
             use rspirv::dr::Operand::LiteralInt32;
@@ -261,11 +210,11 @@ fn compile_generic_shader_hlsl_impl(
         target_profile,
         &[
             "-spirv",
-            //"-enable-16bit-types",
+            
             "-fspv-target-env=vulkan1.2",
-            "-WX",      // warnings as errors
-            "-Ges",     // strict mode
-            "-HV 2021", // HLSL version 2021
+            "-WX",      
+            "-Ges",     
+            "-HV 2021", 
         ],
         &[],
     )

@@ -407,8 +407,6 @@ impl RtdgiRenderer {
                     .format(vk::Format::R32G32_UINT),
             );
 
-            // Note: only needed with `RTDGI_RESTIR_SPATIAL_USE_RAYMARCH_COLOR_BOUNCE`
-            // Consider making that a CPU-side setting too.
             let mut bounced_radiance_output_tex0 = rg.create(
                 gbuffer_desc
                     .usage(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::STORAGE)
@@ -426,8 +424,7 @@ impl RtdgiRenderer {
             let mut bounced_radiance_input_tex = &radiance_tex;
 
             for spatial_reuse_pass_idx in 0..self.spatial_reuse_pass_count {
-                // Only do occlusion checks in the final resampling pass.
-                // Otherwise we get accumulation of darkening.
+
                 let perform_occulsion_raymarch: u32 =
                     if spatial_reuse_pass_idx + 1 == self.spatial_reuse_pass_count {
                         1

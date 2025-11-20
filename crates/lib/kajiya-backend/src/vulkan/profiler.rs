@@ -58,11 +58,10 @@ impl<'dev, 'alloc> gpu_profiler::backend::ash::VulkanBackend for ProfilerBackend
                 name: "buffer",
                 requirements,
                 location: gpu_allocator::MemoryLocation::GpuToCpu,
-                linear: true, // Buffers are always linear
+                linear: true, 
             })
             .unwrap();
 
-        // Bind memory to the buffer
         unsafe {
             self.device
                 .bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
